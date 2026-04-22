@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AilurusGIS</title>
+
+    <link rel="icon" type="image/svg+xml" href="Sprites/Favicons/favicon.svg">
+    <link rel="icon" type="image/png" href="Sprites/Favicons/favicon.png" sizes="any">
+
+    <!-- ═══════════════════════════════════════════════════
+         ЯДРО CESIUM стили и движок 3D глобуса
+    ═══════════════════════════════════════════════════ -->
+    <script src="Cesium/Cesium.js" charset="utf-8"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet" />
+    
+    <style>
+        /* Убирает отступы и растягивает карту на весь экран */
+        html, body, #cesiumContainer {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000000;
+        }
+
+        /* ЧЁРНЫЙ ЭКРАН ПРЕДЗАГРУЗКИ */
+        #preloadBlackScreen {
+            position: fixed;
+            inset: 0;
+            background: #000000;
+            z-index: 99999;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.25s ease-out;
+        }
+
+        /* Стили для логотипа */
+        #logo {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            width: 200px;
+            height: auto;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        /* ===== МОБИЛЬНАЯ АДАПТАЦИЯ КАРТЫ ===== */
+
+        /* Кнопка сворачивания/разворачивания боковой панели инструментов */
+        #mobileToolbarToggle {
+            display: none;
+            position: fixed;
+            bottom: 80px;
+            left: 15px;
+            z-index: 2000;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Кнопка "домой" для мобильных — крупнее */
+        @media (max-width: 768px) {
+            /* Показываем кнопку сворачивания панели */
+            #mobileToolbarToggle { display: flex; }
+
+            /* Логотип меньше на мобильных */
+            #logo { width: 120px; bottom: 8px; right: 8px; opacity: 0.4; }
+
+            /* Кнопки Cesium крупнее для пальцев */
+            .cesium-button {
+                min-width: 38px !important;
+                min-height: 38px !important;
+            }
+
+            /* Все панели инструментов — скрытый режим по умолчанию */
+            /* JS управляет классом .toolbar-hidden через #mobileToolbarToggle */
+            .toolbar-hidden #environmentUiContainer,
+            .toolbar-hidden #bordersUiContainer,
+            .toolbar-hidden #bathymetryUiContainer,
+            .toolbar-hidden #eqUiContainer,
+            .toolbar-hidden #satUiContainer,
+            .toolbar-hidden #weatherUiContainer,
+            .toolbar-hidden #dnUiContainer,
+            .toolbar-hidden #dbUiContainer {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateX(-60px);
+                transition: opacity 0.25s, transform 0.25s;
+            }
+
+            /* Анимация появления */
+            #environmentUiContainer,
+            #bordersUiContainer,
+            #bathymetryUiContainer,
+            #eqUiContainer,
+            #satUiContainer,
+            #weatherUiContainer,
+            #dnUiContainer,
+            #dbUiContainer {
+                transition: opacity 0.25s, transform 0.25s;
+            }
+
+            /* Панели деталей — адаптировать под мобильный экран */
+            /* City details panel и другие всплывающие окна */
+            [style*="position: absolute"][style*="right:"]:not(#cityDetailsSidebarToggle) {
+                max-width: calc(100vw - 20px) !important;
+            }
+        }
+
+        /* Ещё мельче — маленькие телефоны */
+        @media (max-width: 480px) {
+            #logo { display: none; }
+
+            /* Cesium нативный тулбар — перемещаем чтобы не мешал */
+            .cesium-viewer-toolbar {
+                top: 5px !important;
+                right: 5px !important;
+            }
+
+            /* Боковые панели — чуть теснее */
+            #environmentUiContainer,
+            #bordersUiContainer,
+            #bathymetryUiContainer,
+            #eqUiContainer,
+            #satUiContainer,
+            #weatherUiContainer,
+            #dnUiContainer,
+            #dbUiContainer {
+                left: 8px !important;
+                gap: 6px !important;
+            }
+        }
+
+        /* Landscape мобильный — уменьшить отступы */
+        @media (max-height: 500px) and (max-width: 900px) {
+            #environmentUiContainer { top: 8px !important; }
+            #bordersUiContainer { top: 48px !important; }
+            #bathymetryUiContainer { top: 88px !important; }
+            #eqUiContainer { top: 128px !important; }
+            #satUiContainer { top: 168px !important; }
+            #weatherUiContainer { top: 208px !important; }
+            #dnUiContainer { top: 248px !important; }
+            #dbUiContainer { top: 288px !important; }
+            
+            #mobileToolbarToggle { bottom: 50px; }
+            #logo { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ═══════════════════════════════════════════════════
+         ЧЁРНЫЙ ЭКРАН ПРЕДЗАГРУЗКИ
+         Показывается при открытии страницы
+         Скрывается через 300 мс см блок JS в самом низу
+         Не закрывает и не заменяет LoadingScreen они работают последовательно сначала этот потом LoadingScreen
+    ═══════════════════════════════════════════════════ -->
+    <div id="preloadBlackScreen"></div>
+
+    <!-- Контейнер 3D глобуса -->
+    <div id="cesiumContainer"></div>
+
+    <!-- Логотип правый нижний угол -->
+    <picture>
+        <source srcset="Sprites/Logos/LogoFullTracingLow.svg" type="image/svg+xml">
+        <img id="logo" src="Sprites/Logos/LogoFullTracingLow.png" alt="Логотип">
+    </picture>
+
+    <!-- Кнопка скрытия/показа панели инструментов (только мобильные) с SVG иконкой и классами Cesium -->
+    <button id="mobileToolbarToggle" class="cesium-button cesium-toolbar-button" title="Показать/скрыть инструменты">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left: 2px;"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 1 ИНИЦИАЛИЗАЦИЯ CESIUM VIEWER
+         Должен быть первым все остальные скрипты зависят от глобальной переменной viewer
+    ═══════════════════════════════════════════════════ -->
+    <script charset="utf-8">
+        // Токен Cesium Ion доступ к спутниковым слоям OSM Buildings и т д
+        Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5YzUxZjU1OS04NDQzLTQwZDQtOTJjYy0wNjJiZjRlNmQwOGMiLCJpZCI6MzUyODk3LCJpYXQiOjE3NzYyNDMzMTl9.8GO5rmLPFBEdxw35tjW9_bPocpja1KVZ8atgKMgmn7Y';
+
+        // API ключ качества воздуха AQICN
+        window.AQICN_API_TOKEN = '68f7e90d5c4016cf4a7e1ebc8b685acf315a246d';
+
+        // Инициализация 3D глобуса
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation:            false,  // убирает виджет времени часы слева внизу
+            timeline:             false,  // убирает полосу времени внизу
+            fullscreenButton:     false,  // убирает кнопку полноэкранного режима
+            navigationHelpButton: true,   // кнопка с подсказками по управлению
+            baseLayerPicker:      true,   // выбор базовой карты
+            geocoder:             false,  // убирает строку поиска лупу
+            sceneModePicker:      false,  // убирает переключатель 2D/3D
+            infoBox:              false   // убирает всплывающий infoBox about blank sandbox
+        });
+
+        // Отключает встроенные оптимизации разрешения для максимальной четкости
+        viewer.useBrowserRecommendedResolution = false;
+        viewer.resolutionScale = 1.0; 
+        
+        // Повышает детализацию текстур и рельефа (по умолчанию 2, меньше = четче)
+        // viewer.scene.globe.maximumScreenSpaceError = 1.5; 
+        
+        // Включает аппаратное сглаживание (MSAA 4x) для устранения "лесенок" (пикселей)
+        // if (viewer.scene.msaaSamples !== undefined) {
+        //     viewer.scene.msaaSamples = 4;
+        // }
+
+        // Скрывает копирайт Cesium
+        viewer._cesiumWidget._creditContainer.style.display = 'none';
+
+        // Убирает Солнце Луну и солнечный блик по умолчанию
+        // ShaderToggle и DayNightVisualization управляют этим сами
+        viewer.scene.sun.show  = false;
+        viewer.scene.moon.show = false;
+        viewer.scene.globe.enableLighting = false;
+
+        // Убирает sandbox атрибут у infoBox чтобы не было ошибок в консоли
+        if (viewer.infoBox && viewer.infoBox.frame) {
+            viewer.infoBox.frame.removeAttribute('sandbox');
+            viewer.infoBox.frame.src = 'about:blank';
+        }
+    </script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 2 УТИЛИТЫ грузятся до всего остального
+    ═══════════════════════════════════════════════════ -->
+
+    <!--
+        LoadingIndicator.js JSFiles/
+        Глобальный индикатор загрузки спиннер + текст внизу экрана
+        Используется почти всеми модулями через window.LoadingIndicator.show/hide
+        Должен загружаться раньше любых модулей которые его вызывают
+    -->
+    <script src="JSFiles/LoadingIndicator.js" charset="utf-8"></script>
+
+    <!--
+        MobileAdapter.js JSFiles/
+        Мобильная адаптация интерфейса: кнопки крупнее, панели в экран,
+        кнопка сворачивания тулбара, оптимизация производительности.
+        Подключать сразу после LoadingIndicator.
+    -->
+    <script src="JSFiles/MobileAdapter.js" charset="utf-8"></script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 3 ШЕЙДЕРЫ ГЛОБУСА
+         JSFiles/Shaders/
+         Применяются сразу после инициализации viewer
+         Порядок важен сначала создаются PostProcess стейджи потом VisualSettings их настраивает
+    ═══════════════════════════════════════════════════ -->
+
+    <!--
+        GlobeOuterGlow.js JSFiles/Shaders/
+        Внешнее синее свечение halo вокруг Земли
+        Видно только из космоса интенсивность зависит от высоты камеры
+    -->
+    <script src="JSFiles/Shaders/GlobeOuterGlow.js" charset="utf-8"></script>
+
+    <!--
+        GlobeOutline.js JSFiles/Shaders/
+        Внутреннее свечение края глобуса два слоя синеватый + тонкая белая линия
+        Динамически меняется при зуме
+    -->
+    <script src="JSFiles/Shaders/GlobeOutline.js" charset="utf-8"></script>
+
+    <!--
+        GlobeShadow.js JSFiles/Shaders/
+        Объёмная тень на поверхности глобуса ночная сторона
+        Использует raycast математику без мерцания
+    -->
+    <script src="JSFiles/Shaders/GlobeShadow.js" charset="utf-8"></script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 4 ИНТРО И ЭКРАН ЗАГРУЗКИ
+         JSFiles/Intro/
+    ═══════════════════════════════════════════════════ -->
+
+    <!--
+        LoadingScreen.js JSFiles/Intro/
+        Чёрный оверлей с текстом ЗАГРУЗКА ДАННЫХ и спиннером
+        Скрывается только когда globe.tilesLoaded === true
+        После скрытия вызывает колбэк запускает интро анимацию
+    -->
+    <script src="JSFiles/Intro/LoadingScreen.js" charset="utf-8"></script>
+
+    <!--
+        IntroAnimation.js JSFiles/Intro/
+        Кинематографичный облёт Земли из глубокого космоса к Казахстану
+        setupIntroCamera() ставит камеру в стартовую точку
+        playIntroAnimation() запускает сам полёт
+    -->
+    <script src="JSFiles/Intro/IntroAnimation.js" charset="utf-8"></script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 5 ПРОЧИЕ УТИЛИТЫ ИНТЕРФЕЙСА
+         JSFiles/Other/
+    ═══════════════════════════════════════════════════ -->
+
+    <!--
+        MusicPlayer.js JSFiles/Other/
+        Фоновый музыкальный плеер Кнопка ВКЛ/ВЫКЛ в левом нижнем углу
+        Файл музыки Music/AilurusGIS.ogg
+    -->
+    <script src="JSFiles/Other/MusicPlayer.js" charset="utf-8"></script>
+
+    <!--
+        ShaderToggle.js JSFiles/Other/
+        Кнопка включения/выключения всех globe шейдеров сразу
+        GlobeOuterGlow GlobeOutline GlobeShadow TwinklingStars
+        Управляет через window.__globeShaderStages
+    -->
+    <script src="JSFiles/Other/ShaderToggle.js" charset="utf-8"></script>
+
+    <!--
+        HomeKazakstan.js JSFiles/Other/
+        Переопределяет кнопку Home в Cesium вместо полёта в США камера летит к центру Казахстана высота 25 000 км
+    -->
+    <script src="JSFiles/Other/HomeKazakstan.js" charset="utf-8"></script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 6 ВИЗУАЛЬНЫЕ НАСТРОЙКИ ГЛОБУСА
+         JSFiles/
+    ═══════════════════════════════════════════════════ -->
+
+    <!--
+        VisualSettings.js JSFiles/
+        Применяет глобальные настройки внешнего вида skybox атмосфера туман bloom FXAA насыщенность текстур
+        Должен вызываться ДО инициализации визуализаций
+    -->
+    <script src="JSFiles/VisualSettings.js" charset="utf-8"></script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 7 ВИЗУАЛИЗАЦИИ Слои данных
+         JSFiles/
+    ═══════════════════════════════════════════════════ -->
+
+    <!--
+        WindFlowVisualization.js JSFiles/
+        Анимированные частицы ветра поверх глобуса
+        Данные Open Meteo Wind API Кнопка в панели окружающей среды
+    -->
+    <script src="JSFiles/WindFlowVisualization.js" charset="utf-8"></script>
+
+    <!--
+        CityDetailsPanel.js JSFiles/
+        Панель детальной информации о городе погода AQI прогноз
+        Открывается при клике на метку города
+    -->
+    <script src="JSFiles/CityDetailsPanel.js" charset="utf-8"></script>
+
+    <!--
+        WeatherVisualization.js JSFiles/
+        Тепловая карта температур + маркеры городов с погодой
+        Данные Open Meteo Weather API
+    -->
+    <script src="JSFiles/WeatherVisualization.js" charset="utf-8"></script>
+
+    <!--
+        AirQualityMapVisualization.js JSFiles/
+        Глобальная тепловая карта качества воздуха AQI
+        Данные Open Meteo Air Quality API Кэшируется в localStorage
+    -->
+    <script src="JSFiles/AirQualityMapVisualization.js" charset="utf-8"></script>
+
+    <!--
+        EnvironmentalVisualization.js JSFiles/
+        Визуализация станций мониторинга окружающей среды AQICN
+        Показывает реальные данные точечных датчиков по всему миру
+    -->
+    <script src="JSFiles/EnvironmentalVisualization.js" charset="utf-8"></script>
+
+    <!--
+        BordersVisualization.js JSFiles/
+        Два слоя границ стран
+        1 CustomBorders.json пользовательские GeoData/Borders/
+        2 SHP границы через /api/borders/shp
+    -->
+    <script src="JSFiles/BordersVisualization.js" charset="utf-8"></script>
+
+    <!--
+        CesiumLocalization.js JSFiles/
+        Локализация интерфейса Cesium на русский казахский английский
+        Синхронизируется с localStorage ailurus_lang
+    -->
+    <script src="JSFiles/CesiumLocalization.js" charset="utf-8"></script>
+
+    <!--
+        BathymetryVisualization.js JSFiles/
+        Слой батиметрии рельеф дна океанов
+        Данные GEBCO через Cesium Ion или локальный tileset
+    -->
+    <script src="JSFiles/BathymetryVisualization.js" charset="utf-8"></script>
+
+    <!--
+        TectonicPlatesVisualization.js JSFiles/
+        Границы тектонических плит и активные разломы GEM
+        Данные GeoData/TectonicPlates/gem_active_faults.geojson
+    -->
+    <script src="JSFiles/TectonicPlatesVisualization.js" charset="utf-8"></script>
+
+    <!--
+        EarthquakeVisualization.js JSFiles/
+        Маркеры землетрясений в реальном времени
+        Данные USGS Earthquake API последние 7 дней
+    -->
+    <script src="JSFiles/EarthquakeVisualization.js" charset="utf-8"></script>
+
+    <!--
+        PrecipitationVisualization.js JSFiles/
+        Радар осадков в реальном времени тайловый слой
+        Данные RainViewer API weather maps.json
+    -->
+    <script src="JSFiles/PrecipitationVisualization.js" charset="utf-8"></script>
+
+    <!--
+        SatelliteVisualization.js JSFiles/
+        Отображение орбит и позиций спутников в реальном времени
+        Данные TLE Two Line Element из внешних источников
+    -->
+    <script src="JSFiles/SatelliteVisualization.js" charset="utf-8"></script>
+
+    <!--
+        DayNightVisualization.js JSFiles/
+        Терминатор день/ночь + ночной слой освещения городов Cesium Ion 3812
+        Панель управления временем слайдер смещения и режим анимации
+    -->
+    <script src="JSFiles/DayNightVisualization.js" charset="utf-8"></script>
+
+    <!--
+        OsmBuildingsVisualization.js JSFiles/
+        3D здания из OpenStreetMap Cesium Ion Asset 96188
+        При включении автоматически активирует мировой рельеф World Terrain
+    -->
+    <script src="JSFiles/OsmBuildingsVisualization.js" charset="utf-8"></script>
+
+    <!--
+        PoiManager.js JSFiles/
+        Менеджер пользовательских закладок POI
+        Левый клик добавить метку правый клик удалить
+        Экспорт/импорт через JSON файл Backend /api/poi
+    -->
+    <script src="JSFiles/PoiManager.js" charset="utf-8"></script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 8 ПРОИЗВОДИТЕЛЬНОСТЬ
+         JSFiles/
+    ═══════════════════════════════════════════════════ -->
+
+    <!--
+        FpsToggle.js JSFiles/
+        Цикличное переключение лимита FPS 60 30 Без лимита
+        Кнопка в левом нижнем углу правее кнопки шейдеров
+    -->
+    <script src="JSFiles/FpsToggle.js" charset="utf-8"></script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 9 ЗАПУСК ВСЕХ МОДУЛЕЙ
+    ═══════════════════════════════════════════════════ -->
+    <script charset="utf-8">
+
+        // 1 Визуальные настройки и шейдеры глобуса
+        applyVisualSettings(viewer);      // атмосфера bloom skybox туман
+        applyGlobeOutline(viewer);        // внутреннее свечение края глобуса
+        applyGlobeShadow(viewer);         // объёмная тень ночная сторона
+        applyGlobeOuterGlow(viewer);      // внешнее синее halo вокруг Земли
+
+        // 2 Камера и интро
+        setupIntroCamera(viewer);         // ставит камеру в стартовую точку космос
+        initLoadingScreen(viewer, function() {
+            playIntroAnimation(viewer);   // после загрузки тайлов облёт к Казахстану
+        });
+
+        // 3 Утилиты интерфейса
+        initMusicPlayer(viewer);          // фоновая музыка
+        initShaderToggle(viewer);         // кнопка вкл/выкл шейдеров
+
+        // 4 Слои данных порядок = порядок кнопок на панели
+        initWeatherVisualization(viewer);          // тепловая карта температур
+        initAirQualityMapVisualization(viewer);    // тепловая карта AQI
+        initEnvironmentalVisualization(viewer);    // станции AQICN
+        initBordersVisualization(viewer);          // границы стран
+        localizeCesiumUI(viewer);                  // локализация UI Cesium
+        initBathymetryVisualization(viewer);       // батиметрия рельеф океанов
+        initTectonicPlatesVisualization(viewer);   // тектонические плиты и разломы
+        initEarthquakeVisualization(viewer);       // землетрясения USGS
+        initPrecipitationVisualization(viewer);    // радар осадков RainViewer
+        initSatelliteVisualization(viewer);        // орбиты спутников
+
+        // 5 Новые модули
+        initDayNightVisualization(viewer);         // терминатор день/ночь
+        initOsmBuildingsVisualization(viewer);     // 3D здания OSM
+        initPoiManager(viewer);                    // закладки POI
+
+        // 6 Производительность
+        initFpsToggle(viewer);                     // переключатель FPS
+
+    </script>
+
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 10 ЧЁРНЫЙ ЭКРАН ПРЕДЗАГРУЗКИ убрать
+         Выполняется ПОСЛЕДНИМ через 300 мс после того как страница полностью распарсена
+    ═══════════════════════════════════════════════════ -->
+    <script charset="utf-8">
+        // Убирает #preloadBlackScreen через 300 мс
+        setTimeout(function () {
+            const screen = document.getElementById('preloadBlackScreen');
+            if (screen) {
+                screen.style.opacity = '0';
+                setTimeout(function () { screen.remove(); }, 260);
+            }
+        }, 300);
+    </script>
+
+    <!-- ═══════════════════════════════════════════════════
+         БЛОК 11 МОБИЛЬНЫЕ ОПТИМИЗАЦИИ
+         Выполняется после инициализации viewer и всех модулей
+         Снижает нагрузку на GPU и улучшает тач-управление
+    ═══════════════════════════════════════════════════ -->
+    <script charset="utf-8">
+    (function() {
+        // Определяет мобильное устройство по User-Agent и ширине окна
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+        // Определяет маленький телефон применяет более агрессивные оптимизации
+        const isSmallPhone = window.innerWidth <= 480;
+
+        // Производительность Cesium
+        //
+        // Снижает нагрузку на GPU и батарею мобильного устройства.
+        // Применяется только если viewer уже проинициализирован.
+
+        if (isMobile && typeof viewer !== 'undefined') {
+
+            // Снижает разрешение рендера, экономит ~35–50% GPU в зависимости от экрана
+            viewer.resolutionScale = isSmallPhone ? 0.5 : 0.65;
+
+            // Ограничивает частоту кадров до 30 FPS экономит батарею без потери плавности
+            viewer.targetFrameRate = 30;
+            viewer.useDefaultRenderLoop = true;
+
+            // Увеличивает порог ошибки тайлов загружает меньше детализированных тайлов в память
+            viewer.scene.globe.maximumScreenSpaceError = isSmallPhone ? 4 : 3;
+
+            // На маленьких экранах отключает дорогостоящие пост-эффекты
+            // bloom и fxaa незаметны на < 480px но сильно грузят GPU
+            if (isSmallPhone) {
+                try {
+                    viewer.scene.postProcessStages.bloom.enabled = false;
+                    viewer.scene.postProcessStages.fxaa.enabled = false;
+                    viewer.scene.fog.enabled = false;
+                    viewer.scene.globe.showGroundAtmosphere = false;
+                } catch(e) {}
+            }
+        }
+
+        // Кнопка сворачивания тулбара
+        //
+        // MobileAdapter.js уже создаёт кнопку и вешает основной обработчик
+        // Этот блок запасной вариант если MobileAdapter не подключён
+
+        const toggleBtn = document.getElementById('mobileToolbarToggle');
+        if (toggleBtn && !toggleBtn._mobileAdapterInited) {
+            let toolbarVisible = true;
+            toggleBtn.addEventListener('click', function() {
+                toolbarVisible = !toolbarVisible;
+                if (toolbarVisible) {
+                    // Показывает тулбар убирает класс скрытия, меняет иконку на ☰
+                    document.body.classList.remove('toolbar-hidden');
+                    toggleBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>';
+                    toggleBtn.title = 'Скрыть инструменты';
+                } else {
+                    // Скрывает тулбар добавляет класс скрытия, меняет иконку на ▶
+                    document.body.classList.add('toolbar-hidden');
+                    toggleBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left: 2px;"><path d="M8 5v14l11-7z"/></svg>';
+                    toggleBtn.title = 'Показать инструменты';
+                }
+            });
+        }
+
+        // Защита от ложных кликов при свайпе
+        //
+        // Вешает слушатели напрямую на canvas Cesium.
+        // При свайпе перехватывает touchend и блокирует его всплытие 
+        // POI менеджер и CityDetailsPanel не получают ложный клик
+
+        if (isMobile && typeof viewer !== 'undefined') {
+            const canvas = viewer.scene.canvas;
+            let touchMoved = false;
+            let touchStartX, touchStartY;
+
+            // Сбрасывает флаг и запоминает точку старта касания
+            canvas.addEventListener('touchstart', function(e) {
+                touchMoved = false;
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+
+            // Помечает касание как свайп если палец сдвинулся больше 8px
+            canvas.addEventListener('touchmove', function(e) {
+                const dx = Math.abs(e.touches[0].clientX - touchStartX);
+                const dy = Math.abs(e.touches[0].clientY - touchStartY);
+                if (dx > 8 || dy > 8) touchMoved = true;
+            }, { passive: true });
+
+            // Блокирует всплытие события если это был свайп а не тап
+            canvas.addEventListener('touchend', function(e) {
+                if (touchMoved) e.stopImmediatePropagation();
+            }, { capture: true });
+        }
+
+    })();
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+    "python.analysis.extraPaths": [
+        "./PythonFiles"
+    ],
+    "python.analysis.diagnosticMode": "workspace",
+    "python.analysis.typeCheckingMode": "basic"
+}

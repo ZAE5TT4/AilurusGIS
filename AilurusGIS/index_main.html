@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n="title">AilurusGIS - Платформа для 3D геоданных</title>
+    
+    <link rel="icon" type="image/svg+xml" href="Sprites/Favicons/favicon.svg">
+    <link rel="icon" type="image/png" href="Sprites/Favicons/favicon.png" sizes="any">
+
+    <!-- Подключает Cesium -->
+    <script src="Cesium/Cesium.js" charset="utf-8"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+    <style>
+        /* Цветовая палитра на основе логотипа Красной Панды */
+        :root {
+            --bg-dark: #0f1621;
+            --bg-light: #ffffff;
+            --accent-orange: #F25C27;
+            --accent-orange-hover: #d94b1a;
+            --accent-blue: #00BFFF;
+            --accent-green: #8BC34A;
+            --text-main: #e0e6ed;
+            --text-muted: #8b9eb5;
+            --font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* НАВИГАЦИЯ */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: nowrap;
+            padding: 20px 50px;
+            background-color: rgba(15, 22, 33, 0.95);
+            backdrop-filter: blur(10px);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            text-decoration: none;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            min-width: 0; /* Позволяет логотипу корректно сжиматься */
+        }
+
+        .logo-container picture {
+            display: flex;
+            align-items: center;
+        }
+
+        .logo-container img {
+            height: 55px;
+            width: auto;
+            display: block; /* Убирает прозрачный отступ снизу (baseline) */
+            transform: translateY(2px); /* Точная визуальная подгонка по центру шапки */
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .nav-links a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent-orange);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-shrink: 0; /* Блок с кнопками не должен сжиматься */
+        }
+
+        .btn-primary {
+            background-color: var(--accent-orange);
+            color: white;
+            padding: 10px 24px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.2s;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap; /* Исключает перенос текста при смене языка */
+        }
+
+        .btn-primary:hover {
+            background-color: var(--accent-orange-hover);
+            transform: translateY(-2px);
+        }
+
+        .lang-select {
+            background: transparent;
+            color: var(--text-main);
+            border: 1px solid var(--text-muted);
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-family);
+        }
+        
+        .lang-select option {
+            background: var(--bg-dark);
+            color: var(--text-main);
+        }
+
+        /* ГЛАВНЫЙ БЛОК HERO С ФОНОМ CESIUM */
+        .hero {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+            min-height: 100vh;
+            padding: 120px 10% 50px 10%;
+            position: relative;
+            background-color: var(--bg-dark); /* Резервный фон */
+            overflow: hidden;
+        }
+
+        /* Контейнер для фоновой 3D карты */
+        #cesiumBackground {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 150%;
+            height: 100%;
+            z-index: 0;
+            cursor: grab;
+            opacity: 0; /* Скрыто до загрузки */
+        }
+
+        #cesiumBackground.loaded {
+            opacity: 1;
+        }
+
+        #cesiumBackground:active {
+            cursor: grabbing;
+        }
+
+        /* Градиент для читаемости текста слева */
+        .hero-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            background: linear-gradient(90deg, rgba(15,22,33,1) 0%, rgba(15,22,33,0.9) 30%, rgba(15,22,33,0) 80%);
+            pointer-events: none; /* Пропускает клики мыши сквозь градиент на глобус */
+        }
+
+        .hero-text {
+            flex: 1;
+            max-width: 600px;
+            position: relative;
+            z-index: 2; /* Текст поверх карты и градиента */
+            pointer-events: auto;
+        }
+
+        .hero-text h1 {
+            font-size: 3.5rem;
+            line-height: 1.1;
+            margin-bottom: 20px;
+            font-weight: 800;
+        }
+
+        .hero-text p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+
+        /* Скрывает лишний интерфейс Cesium */
+        .cesium-viewer-bottom, .cesium-viewer-toolbar, .cesium-widget-credits { 
+            display: none !important; 
+        }
+
+        /* ПРЕИМУЩЕСТВА FEATURES */
+        .features {
+            background-color: var(--bg-light);
+            color: #333;
+            padding: 80px 10%;
+            text-align: center;
+            position: relative;
+            z-index: 3;
+        }
+
+        .features h2 {
+            font-size: 2.5rem;
+            margin-bottom: 50px;
+            color: var(--bg-dark);
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 80px; /* Увеличивает отступ до скриншотов */
+        }
+
+        .card {
+            background: #fff;
+            padding: 50px 30px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+            border-bottom: 4px solid var(--accent-orange);
+        }
+
+        .card:nth-child(2) { border-bottom-color: var(--accent-blue); }
+        .card:nth-child(3) { border-bottom-color: var(--accent-green); }
+
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: var(--bg-dark);
+        }
+
+        .card p {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .card a {
+            color: var(--bg-dark);
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .card a:hover {
+            color: var(--accent-orange);
+        }
+
+        /* БЛОК СО СКРИНШОТАМИ */
+        .feature-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 80px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-row {
+            display: flex;
+            align-items: center;
+            gap: 50px;
+            text-align: left;
+        }
+
+        .feature-row:nth-child(even) {
+            flex-direction: row-reverse;
+        }
+
+        .feature-row-img {
+            flex: 1;
+        }
+
+        .feature-row-img img {
+            width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+            transition: transform 0.3s ease;
+        }
+
+        .feature-row-img img:hover {
+            transform: scale(1.02);
+        }
+
+        .feature-row-text {
+            flex: 1;
+        }
+
+        .feature-row-text h3 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+            color: var(--bg-dark);
+        }
+
+        .feature-row-text p {
+            color: #555;
+            font-size: 1.15rem;
+            line-height: 1.6;
+        }
+
+        /* БЛОК CALL TO ACTION */
+        .cta-section {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 350px;
+            background: linear-gradient(135deg, rgba(242, 92, 39, 0.05) 0%, rgba(0, 191, 255, 0.05) 100%);
+            border-top: 1px solid rgba(255,255,255,0.02);
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            background-color: var(--bg-dark);
+            padding: 60px 10%;
+            overflow: hidden;
+            z-index: 3;
+        }
+
+        .cta-image-left {
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 45%;
+            height: 150%; /* Сильно обрезаем сверху и снизу */
+            z-index: 1;
+            pointer-events: none;
+            /* Плавное растворение картинки вправо, чтобы она не мешала тексту по центру */
+            mask-image: linear-gradient(to right, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%);
+            -webkit-mask-image: linear-gradient(to right, rgba(0,0,0,1) 40%, rgba(0,0,0,0) 100%);
+        }
+
+        .cta-image-left img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: right center;
+            opacity: 0.85;
+        }
+
+        .cta-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .cta-content h2 {
+            font-size: 2.2rem;
+            margin-bottom: 30px;
+            color: var(--text-main);
+            text-shadow: 0 4px 15px rgba(0,0,0,0.5); /* Тень для хорошей читаемости поверх всего */
+        }
+
+        /* ПОДВАЛ */
+        footer {
+            background-color: var(--bg-dark);
+            padding: 40px 10%;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            position: relative;
+            z-index: 3;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 35px;
+        }
+
+        .footer-socials-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .footer-socials-title {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .footer-socials {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .footer-socials a {
+            display: block;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            opacity: 0.8;
+        }
+
+        .footer-socials a:hover {
+            transform: translateY(-3px);
+            opacity: 1;
+        }
+
+        .footer-socials a img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+        }
+
+        /* ===== МОБИЛЬНАЯ АДАПТАЦИЯ ===== */
+
+        /* Бургер-меню кнопка */
+        .burger-btn {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            width: 40px;
+            height: 40px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            z-index: 1100;
+        }
+        .burger-btn span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            background: var(--text-main);
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        .burger-btn.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+        .burger-btn.open span:nth-child(2) { opacity: 0; }
+        .burger-btn.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+        /* Мобильное меню оверлей */
+        .mobile-nav-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 22, 33, 0.97);
+            z-index: 1050;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 30px;
+        }
+        .mobile-nav-overlay.open { display: flex; }
+        .mobile-nav-overlay a {
+            color: var(--text-main);
+            text-decoration: none;
+            font-size: 1.6rem;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+        .mobile-nav-overlay a:active { color: var(--accent-orange); }
+        .mobile-nav-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            font-size: 2rem;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        /* 900px — планшеты/большие телефоны */
+        @media (max-width: 900px) {
+            .hero { text-align: center; justify-content: center; }
+            .hero-overlay { background: rgba(15,22,33,0.7); }
+            .nav-links { display: none; }
+            header { padding: 15px 20px; }
+            .burger-btn { display: flex; }
+
+            #cesiumBackground { width: 100%; }
+
+            .feature-row, .feature-row:nth-child(even) {
+                flex-direction: column;
+                text-align: center;
+                gap: 30px;
+            }
+
+            .cta-image-left {
+                width: 100%;
+                opacity: 0.3;
+                mask-image: none;
+                -webkit-mask-image: none;
+            }
+        }
+
+        /* 600px — смартфоны */
+        @media (max-width: 600px) {
+            /* Шапка */
+            header { padding: 12px 16px; }
+            .logo-container { font-size: 18px; gap: 8px; flex-shrink: 1; }
+            .logo-container img { height: 38px; transform: translateY(1px); }
+            .header-actions { gap: 8px; }
+            .lang-select { padding: 4px 6px; font-size: 13px; }
+            .btn-primary { padding: 8px 14px; font-size: 12px; }
+
+            /* Герой */
+            .hero { padding: 100px 6% 40px 6%; min-height: 100svh; }
+            .hero-text h1 { font-size: 2.1rem; }
+            .hero-text p { font-size: 1rem; margin-bottom: 28px; }
+            .hero-text .btn-primary { padding: 13px 24px; font-size: 15px; }
+
+            /* Цезиум-фон на мобильных — отключить WebGL если возможно, просто затемнение */
+            #cesiumBackground { pointer-events: none; }
+
+            /* Секция возможностей */
+            .features { padding: 50px 6%; }
+            .features h2 { font-size: 1.7rem; margin-bottom: 30px; }
+            .cards { grid-template-columns: 1fr; gap: 20px; margin-bottom: 50px; }
+            .card { padding: 35px 24px; }
+            .card h3 { font-size: 1.25rem; }
+            .card:hover { transform: none; }
+
+            /* Ряды со скриншотами */
+            .feature-rows { gap: 50px; }
+            .feature-row { gap: 20px; }
+            .feature-row-text h3 { font-size: 1.5rem; }
+            .feature-row-text p { font-size: 1rem; }
+
+            /* CTA */
+            .cta-section { padding: 50px 6%; min-height: auto; }
+            .cta-content h2 { font-size: 1.5rem; margin-bottom: 22px; }
+            .cta-content .btn-primary { padding: 13px 28px; font-size: 1rem; }
+
+            /* Футер */
+            footer { padding: 30px 6%; gap: 22px; }
+            .footer-socials a img { width: 32px; height: 32px; }
+            footer p { font-size: 0.8rem; }
+        }
+
+        /* 380px — маленькие телефоны */
+        @media (max-width: 380px) {
+            .hero-text h1 { font-size: 1.7rem; }
+            .features h2 { font-size: 1.4rem; }
+            .logo-container img { height: 32px; }
+            /* Скрываем кнопку в шапке на маленьких экранах, так как она уже есть в бургер-меню */
+            .header-actions .btn-primary { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="#" class="logo-container">
+            <picture>
+                <source srcset="Sprites/Logos/LogoFullTracingLow.svg" type="image/svg+xml">
+                <img src="Sprites/Logos/LogoFullTracingLow.png" alt="AilurusGIS">
+            </picture>
+        </a>
+        
+        <nav class="nav-links">
+            <a href="#about" data-i18n="nav_about">О платформе</a>
+            <a href="#features" data-i18n="nav_features">Возможности</a>
+            <a href="#community" data-i18n="nav_community">Сообщество</a>
+        </nav>
+
+        <div class="header-actions">
+            <select class="lang-select" id="langSwitcher" onchange="changeLanguage(this.value)">
+                <option value="ru">RU</option>
+                <option value="en">EN</option>
+                <option value="kz">KZ</option>
+            </select>
+            <a href="/map" class="btn-primary" data-i18n="btn_open_map">Открыть Карту</a>
+            <!-- Бургер-меню (только мобильные) -->
+            <button class="burger-btn" id="burgerBtn" aria-label="Меню">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Мобильное навигационное меню -->
+    <div class="mobile-nav-overlay" id="mobileNavOverlay">
+        <button class="mobile-nav-close" id="mobileNavClose" aria-label="Закрыть">&times;</button>
+        <a href="#about" data-i18n="nav_about" class="mobile-nav-link">О платформе</a>
+        <a href="#features" data-i18n="nav_features" class="mobile-nav-link">Возможности</a>
+        <a href="#community" data-i18n="nav_community" class="mobile-nav-link">Сообщество</a>
+        <a href="/map" class="btn-primary" style="margin-top:10px; padding:14px 32px; font-size:16px;" data-i18n="btn_open_map">Открыть Карту</a>
+    </div>
+
+    <section class="hero" id="about">
+        <!-- Фон Cesium -->
+        <div id="cesiumBackground"></div>
+        <!-- Затемнение слева для текста -->
+        <div class="hero-overlay"></div>
+
+        <div class="hero-text">
+            <h1 data-i18n="hero_title">Платформа для 3D Геопространства</h1>
+            <p data-i18n="hero_subtitle">AilurusGIS — это передовая платформа для визуализации, анализа и управления 3D-данными о Земле. Раскройте потенциал ваших геоданных прямо в браузере.</p>
+            <a href="/map" class="btn-primary" style="padding: 15px 30px; font-size: 16px;" data-i18n="btn_get_started">Начать работу</a>
+        </div>
+    </section>
+
+    <section class="features" id="features">
+        <h2 data-i18n="features_title">Создавайте инновационные ГИС-приложения</h2>
+        
+        <div class="cards">
+            <!-- Карточка 1 -->
+            <div class="card">
+                <h3 data-i18n="card1_title">Оптимизация данных</h3>
+                <p data-i18n="card1_desc">Продвинутая архитектура позволяет обрабатывать и отображать огромные массивы геоданных с максимальной плавностью.</p>
+                <a href="/map" data-i18n="learn_more">Узнать больше</a>
+            </div>
+
+            <!-- Карточка 2 -->
+            <div class="card">
+                <h3 data-i18n="card2_title">Точность</h3>
+                <p data-i18n="card2_desc">Визуализируйте и анализируйте ваши данные на самом точном в мире движке рендеринга виртуального глобуса.</p>
+                <a href="/map" data-i18n="learn_more">Узнать больше</a>
+            </div>
+
+            <!-- Карточка 3 -->
+            <div class="card">
+                <h3 data-i18n="card3_title">Интеграция</h3>
+                <p data-i18n="card3_desc">Поддержка погодных радаров, индексов качества воздуха (AQI), спутников в реальном времени и многого другого.</p>
+                <a href="/map" data-i18n="learn_more">Узнать больше</a>
+            </div>
+        </div>
+
+        <!-- БЛОК СО СКРИНШОТАМИ И ОПИСАНИЕМ ФУНКЦИОНАЛА -->
+        <div class="feature-rows">
+            <!-- Скриншот 1 -->
+            <div class="feature-row">
+                <div class="feature-row-img">
+                    <img src="Sprites/ScreenshotsMain/Scr1.png" alt="Динамическая погода и ветер">
+                </div>
+                <div class="feature-row-text">
+                    <h3 data-i18n="showcase1_title">Динамическая погода и ветер</h3>
+                    <p data-i18n="showcase1_desc">Наблюдайте за глобальной циркуляцией атмосферы. Тепловая карта и потоки ветра в реальном времени позволяют анализировать погодные условия на всей планеты.</p>
+                </div>
+            </div>
+
+            <!-- Скриншот 2 -->
+            <div class="feature-row">
+                <div class="feature-row-img">
+                    <img src="Sprites/ScreenshotsMain/Scr2.png" alt="Сейсмическая активность">
+                </div>
+                <div class="feature-row-text">
+                    <h3 data-i18n="showcase2_title">Сейсмическая активность</h3>
+                    <p data-i18n="showcase2_desc">Интеграция данных Геологической службы США (USGS) и базы тектонических разломов. Изучайте эпицентры землетрясений с привязкой к границам литосферных плит.</p>
+                </div>
+            </div>
+
+            <!-- Скриншот 3 -->
+            <div class="feature-row">
+                <div class="feature-row-img">
+                    <img src="Sprites/ScreenshotsMain/Scr3.png" alt="Экологический мониторинг">
+                </div>
+                <div class="feature-row-text">
+                    <h3 data-i18n="showcase3_title">Экологический мониторинг</h3>
+                    <p data-i18n="showcase3_desc">Детальная визуализация Индекса качества воздуха (AQI). Тысячи наземных станций и глобальная интерполяция данных помогают оценивать экологическую обстановку.</p>
+                </div>
+            </div>
+
+            <!-- Скриншот 4 -->
+            <div class="feature-row">
+                <div class="feature-row-img">
+                    <img src="Sprites/ScreenshotsMain/Scr4.png" alt="Детальная аналитика локаций">
+                </div>
+                <div class="feature-row-text">
+                    <h3 data-i18n="showcase4_title">Детальная аналитика локаций</h3>
+                    <p data-i18n="showcase4_desc">Интерактивная панель с прогнозом погоды на 5 дней, почасовым графиком качества воздуха и подробными показателями загрязнения для любого выбранного города.</p>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <section class="cta-section" id="community">
+        <div class="cta-image-left">
+            <img src="Sprites/EarthGrid/EarthGrid.png" alt="Earth Grid Map">
+        </div>
+        <div class="cta-content">
+            <h2 data-i18n="cta_title">Начните визуализировать данные с AilurusGIS</h2>
+            <a href="/map" class="btn-primary" style="padding: 15px 40px; font-size: 1.1rem;" data-i18n="btn_open_map">Открыть Карту</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="footer-socials-wrapper">
+            <div class="footer-socials-title" data-i18n="footer_socials_text">Социальные сети автора:</div>
+            <div class="footer-socials">
+                <a href="https://boosty.to/sdd5tt4" target="_blank" rel="noopener noreferrer" title="Boosty">
+                    <img src="Sprites/SocialNetworksIcons/boostyI.png" alt="Boosty">
+                </a>
+                <a href="https://github.com/ZAE5TT4" target="_blank" rel="noopener noreferrer" title="GitHub">
+                    <img src="Sprites/SocialNetworksIcons/githubI.png" alt="GitHub">
+                </a>
+                <a href="https://www.moddb.com/members/zae5tt4" target="_blank" rel="noopener noreferrer" title="ModDB">
+                    <img src="Sprites/SocialNetworksIcons/moddbI.png" alt="ModDB">
+                </a>
+                <a href="https://t.me/sdd5tt4" target="_blank" rel="noopener noreferrer" title="Telegram">
+                    <img src="Sprites/SocialNetworksIcons/telegramI.png" alt="Telegram">
+                </a>
+                <a href="https://www.tiktok.com/@sdd5tt4_" target="_blank" rel="noopener noreferrer" title="TikTok">
+                    <img src="Sprites/SocialNetworksIcons/social5.png" alt="TikTok">
+                </a>
+                <a href="https://www.youtube.com/@SDD5TT4" target="_blank" rel="noopener noreferrer" title="YouTube">
+                    <img src="Sprites/SocialNetworksIcons/youtubeI.png" alt="YouTube">
+                </a>
+            </div>
+        </div>
+        <p>&copy; 2026 AilurusGIS. <span data-i18n="footer_text">Данные предоставляются из открытых и бесплатных источников в ознакомительных целях и не нарушают авторские права.</span></p>
+    </footer>
+
+    <!-- Подключает скрипт локализации главной страницы -->
+    <script src="JSFiles/MainLocalization.js" charset="utf-8"></script>
+    
+    <!-- Подключает шейдеры и настройки визуала -->
+    <script src="JSFiles/LoadingIndicator.js" charset="utf-8"></script>
+    <script src="JSFiles/VisualSettings.js" charset="utf-8"></script>
+    <script src="JSFiles/Shaders/GlobeOuterGlow.js" charset="utf-8"></script>
+    <script src="JSFiles/Shaders/GlobeOutline.js" charset="utf-8"></script>
+    <script src="JSFiles/Shaders/GlobeShadow.js" charset="utf-8"></script>
+
+    <!-- Скрипт настройки Cesium для Лендинга -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            // Токен доступа
+            Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI5YzUxZjU1OS04NDQzLTQwZDQtOTJjYy0wNjJiZjRlNmQwOGMiLCJpZCI6MzUyODk3LCJpYXQiOjE3NzYyNDMzMTl9.8GO5rmLPFBEdxw35tjW9_bPocpja1KVZ8atgKMgmn7Y';
+
+            const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+            if (isMobile) {
+                return;
+            }
+
+            // Инициализирует легковесный просмотрщик
+            const viewerLanding = new Cesium.Viewer('cesiumBackground', {
+                animation: false,
+                timeline: false,
+                baseLayerPicker: false,
+                geocoder: false,
+                homeButton: false,
+                infoBox: false,
+                sceneModePicker: false,
+                navigationHelpButton: false,
+                navigationInstructionsInitiallyVisible: false,
+                fullscreenButton: false
+            });
+
+            // На мобильных снижаем качество рендера для экономии батареи и памяти
+            viewerLanding.resolutionScale = isMobile ? 0.5 : 0.80;
+
+            // Настраивает фон под цветовую палитру космоса
+            viewerLanding.scene.backgroundColor = Cesium.Color.fromCssColorString('#0f1621');
+            viewerLanding.scene.skyBox.show = false;
+            viewerLanding.scene.skyAtmosphere.show = false;
+            viewerLanding.scene.sun.show = false;
+            viewerLanding.scene.moon.show = false;
+            viewerLanding.scene.globe.enableLighting = false;
+
+            // На мобильных отключаем дорогостоящие эффекты
+            if (isMobile) {
+                viewerLanding.scene.postProcessStages.bloom.enabled = false;
+                viewerLanding.scene.postProcessStages.fxaa.enabled = false;
+                viewerLanding.scene.globe.showGroundAtmosphere = false;
+                viewerLanding.scene.fog.enabled = false;
+            }
+
+            // Ограничивает управление камерой только вращение
+            const cameraController = viewerLanding.scene.screenSpaceCameraController;
+            cameraController.enableZoom = false;
+            cameraController.enableTranslate = false;
+            cameraController.enableTilt = false;
+            cameraController.enableLook = false;
+
+            // ИСПРАВЛЕНИЕ СКРОЛЛА
+            const canvas = viewerLanding.scene.canvas;
+
+            canvas.addEventListener('wheel', function(e) {
+                e.stopPropagation();
+                let delta = e.deltaY;
+                if (e.deltaMode === 1) delta *= 32;
+                if (e.deltaMode === 2) delta *= window.innerHeight;
+                window.scrollBy({ top: delta, behavior: 'auto' });
+            }, { capture: true, passive: false });
+
+            // Прокручивает на сенсорных экранах свайп
+            let touchStartY = 0;
+            canvas.addEventListener('touchstart', function(e) {
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+
+            canvas.addEventListener('touchmove', function(e) {
+                let touchEndY = e.touches[0].clientY;
+                window.scrollBy({ top: touchStartY - touchEndY, behavior: 'auto' });
+                touchStartY = touchEndY;
+            }, { passive: true });
+
+            // Применяет настройки визуала через try catch для безопасности
+            if (typeof applyVisualSettings === 'function') {
+                try { applyVisualSettings(viewerLanding); } catch (e) { console.warn("VisualSettings warn", e); }
+            }
+
+            // Применяет шейдеры только на десктопе (экономия ресурсов мобильных)
+            if (!isMobile) {
+                if (typeof applyGlobeOutline === 'function') applyGlobeOutline(viewerLanding);
+                if (typeof applyGlobeShadow === 'function') applyGlobeShadow(viewerLanding);
+                if (typeof applyGlobeOuterGlow === 'function') applyGlobeOuterGlow(viewerLanding);
+            }
+
+            // Приближает карту высота 800км
+            viewerLanding.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(68.0, 48.0, 20000000),
+                duration: 0
+            });
+
+            // Медленно вращает планету для живого фона
+            // На мобильных — ещё медленнее, меньше нагрузка
+            const rotateSpeed = isMobile ? 0.0005 : 0.001;
+            viewerLanding.clock.onTick.addEventListener(function() {
+                viewerLanding.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, rotateSpeed);
+            });
+
+            // Плавно показывает карту
+            const cesiumBg = document.getElementById('cesiumBackground');
+            setTimeout(function() {
+                cesiumBg.style.transition = 'opacity 1.8s ease-out';
+                cesiumBg.style.opacity = '1';
+            }, 500);
+        });
+    </script>
+
+    <!-- Бургер-меню и мобильные оптимизации -->
+    <script>
+        const burgerBtn = document.getElementById('burgerBtn');
+        const mobileNavOverlay = document.getElementById('mobileNavOverlay');
+        const mobileNavClose = document.getElementById('mobileNavClose');
+
+        function openMobileNav() {
+            mobileNavOverlay.classList.add('open');
+            burgerBtn.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeMobileNav() {
+            mobileNavOverlay.classList.remove('open');
+            burgerBtn.classList.remove('open');
+            document.body.style.overflow = '';
+        }
+
+        burgerBtn.addEventListener('click', openMobileNav);
+        mobileNavClose.addEventListener('click', closeMobileNav);
+        document.querySelectorAll('.mobile-nav-link').forEach(link => {
+            link.addEventListener('click', closeMobileNav);
+        });
+        // Закрыть по клику на фон
+        mobileNavOverlay.addEventListener('click', function(e) {
+            if (e.target === mobileNavOverlay) closeMobileNav();
+        });
+    </script>
+
+</body>
+</html>
