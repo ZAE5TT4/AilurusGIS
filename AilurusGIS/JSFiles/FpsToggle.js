@@ -1,13 +1,10 @@
-/**
- * Кнопка управления FPS.
- * Цикл: 60 FPS → 30 FPS → Без ограничений → 60 FPS → ...
- * Размещается в leftBottomControls, правее кнопки отключения шейдеров.
- * @param {Cesium.Viewer} viewer
- */
+/* * * кнопка управления fps * цикл: 60 fps → 30 fps → без ограничений → 60 fps → * размещается в leftbottomcontrols правее кнопки отключения шейдеров * @param {cesiumviewer} viewer */
 (function () {
+    // объявление функции
     function initFpsToggle(viewer) {
-        // Ищем или создаём контейнер рядом с кнопкой шейдеров
+        // ищем или создаём контейнер рядом с кнопкой шейдеров
         let container = document.getElementById('leftBottomControls');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'leftBottomControls';
@@ -25,7 +22,7 @@
             document.head.appendChild(syncStyles);
         }
 
-        // Состояния: 0 = 60fps, 1 = 30fps, 2 = unlimited
+        // состояния: 0 60fps 1 30fps 2 unlimited
         const FPS_STATES = [
             { label: '60 FPS',       fps: 60,       icon: 'Sprites/Icons/60FPS.png',        title: 'Режим 60 FPS (нажмите для смены)' },
             { label: '30 FPS',       fps: 30,       icon: 'Sprites/Icons/30FPS.png',        title: 'Режим 30 FPS (нажмите для смены)' },
@@ -34,7 +31,7 @@
 
         let currentState = 0;
 
-        // Применяем начальный режим — 60 FPS
+        // применяем начальный режим 60 fps
         applyFpsState(viewer, FPS_STATES[0]);
 
         const btn = document.createElement('button');
@@ -53,7 +50,7 @@
         icon.style.height = '20px';
         btn.appendChild(icon);
 
-        // Добавляем ПОСЛЕ уже существующих кнопок в контейнере
+        // добавляем после уже существующих кнопок в контейнере
         container.appendChild(btn);
 
         btn.addEventListener('click', () => {
@@ -65,9 +62,11 @@
         });
     }
 
+    // объявление функции
     function applyFpsState(viewer, state) {
+        // проверка условия
         if (state.fps === Infinity) {
-            // Убираем все ограничения
+            // убираем все ограничения
             viewer.targetFrameRate = undefined;
             viewer.useDefaultRenderLoop = true;
             viewer.scene.requestRenderMode = false;

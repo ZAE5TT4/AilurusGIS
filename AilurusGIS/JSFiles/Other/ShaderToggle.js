@@ -1,10 +1,9 @@
-/**
- * Кнопка переключения globe-шейдеров.
- * @param {Cesium.Viewer} viewer
- */
+/* * * кнопка переключения globeшейдеров * @param {cesiumviewer} viewer */
+// объявление функции
 function initShaderToggle(viewer) {
-    // Получаем или создаем контейнер
+    // получаем или создаем контейнер
     let controlsContainer = document.getElementById('leftBottomControls');
+    // проверка условия
     if (!controlsContainer) {
         controlsContainer = document.createElement('div');
         controlsContainer.id = 'leftBottomControls';
@@ -41,8 +40,9 @@ function initShaderToggle(viewer) {
 
         const stages = window.__globeShaderStages || {};
         
-        // В этот массив добавлен stages.twinklingStars
+        // в этот массив добавлен stagestwinklingstars
         [stages.outerGlow, stages.outline, stages.shadow, stages.twinklingStars].forEach((stage) => {
+            // проверка условия
             if (stage) {
                 stage.enabled = shadersEnabled;
             }

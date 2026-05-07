@@ -1,6 +1,4 @@
-/**
- * Кинематографичная заставка открытия карты (Только математика полета).
- */
+/* * * кинематографичная заставка открытия карты (только математика полета) */
 
 const introConfig = {
     endLon: 66.9237,
@@ -10,14 +8,13 @@ const introConfig = {
     startLat: 0.0,
     startHeight: 150000000,  // Далекий космос
     
-    // Уменьшили время до 3.8 секунд. 
-    // Визуально анимация займет столько же, но "мертвой зоны" в конце больше не будет.
+    // уменьшили время до 38 секунд
+    // визуально анимация займет столько же но "мертвой зоны" в конце больше не будет
     duration: 3800           
 };
 
-/**
- * 1. Устанавливает камеру в точку старта.
- */
+/* * * 1 устанавливает камеру в точку старта */
+// объявление функции
 function setupIntroCamera(viewer) {
     viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(introConfig.startLon, introConfig.startLat, introConfig.startHeight),
@@ -29,13 +26,13 @@ function setupIntroCamera(viewer) {
     });
 }
 
-/**
- * 2. Запускает сам полет от стартовой точки к конечной.
- */
+/* * * 2 запускает сам полет от стартовой точки к конечной */
+// объявление функции
 function playIntroAnimation(viewer) {
     let startTime = null;
 
     const animHandler = function(scene, time) {
+        // проверка условия
         if (!startTime) {
             startTime = performance.now();
         }
@@ -43,9 +40,9 @@ function playIntroAnimation(viewer) {
         const now = performance.now();
         let t = (now - startTime) / introConfig.duration;
 
-        // Если анимация закончена
+        // если анимация закончена
         if (t >= 1.0) {
-            // Устанавливаем ровно в финальную точку один раз
+            // устанавливаем ровно в финальную точку один раз
             viewer.camera.setView({
                 destination: Cesium.Cartesian3.fromDegrees(introConfig.endLon, introConfig.endLat, introConfig.endHeight),
                 orientation: {
@@ -55,14 +52,15 @@ function playIntroAnimation(viewer) {
                 }
             });
             
-            // Отписываемся от обновления кадров и возвращаем мышку
+            // отписываемся от обновления кадров и возвращаем мышку
             viewer.scene.preUpdate.removeEventListener(animHandler);
             viewer.scene.screenSpaceCameraController.enableInputs = true; 
             
+            // возврат результата
             return; // Обязательно выходим из функции, чтобы не вызывать нижний setView
         }
 
-        // Quintic Out (резкий старт, очень плавное торможение)
+        // quintic out (резкий старт очень плавное торможение)
         const easeT = 1.0 - Math.pow(1.0 - t, 5);
 
         const currentLon = introConfig.startLon + (introConfig.endLon - introConfig.startLon) * easeT;

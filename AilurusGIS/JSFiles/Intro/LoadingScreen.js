@@ -1,12 +1,7 @@
-/**
- * Экран загрузки карты.
- * Показывает индикатор загрузки на черном фоне.
- * Убирается только тогда, когда движок скачает и отрендерит все тайлы Земли для текущего вида.
- * * @param {Cesium.Viewer} viewer 
- * @param {Function} onReadyCallback - функция, которая запустится после окончания загрузки
- */
+/* * * экран загрузки карты * показывает индикатор загрузки на черном фоне * убирается только тогда когда движок скачает и отрендерит все тайлы земли для текущего вида * * @param {cesiumviewer} viewer * @param {function} onreadycallback функция которая запустится после окончания загрузки */
+// объявление функции
 function initLoadingScreen(viewer, onReadyCallback) {
-    // 1. Создаем контейнер экрана загрузки
+    // 1 создаем контейнер экрана загрузки
     const overlay = document.createElement('div');
     overlay.id = 'loadingOverlay';
     overlay.style.position = 'fixed';
@@ -26,7 +21,7 @@ function initLoadingScreen(viewer, onReadyCallback) {
     overlay.style.fontFamily = 'Arial, sans-serif';
     overlay.style.transition = 'opacity 1.2s ease-in-out'; // Плавное затухание
     
-    // 2. Добавляем текст
+    // 2 добавляем текст
     const text = document.createElement('div');
     text.innerText = 'ЗАГРУЗКА ДАННЫХ...';
     text.style.fontSize = '14px';
@@ -34,7 +29,7 @@ function initLoadingScreen(viewer, onReadyCallback) {
     text.style.marginBottom = '25px';
     text.style.color = '#8899aa'; // Легкий синевато-серый оттенок
 
-    // 3. Добавляем стильный CSS-спиннер
+    // 3 добавляем стильный cssспиннер
     const spinner = document.createElement('div');
     spinner.style.width = '45px';
     spinner.style.height = '45px';
@@ -43,37 +38,37 @@ function initLoadingScreen(viewer, onReadyCallback) {
     spinner.style.borderRadius = '50%';
     spinner.style.animation = 'cesium-spin 1s linear infinite';
     
-    // Встраиваем стиль для анимации спиннера
+    // встраиваем стиль для анимации спиннера
     const style = document.createElement('style');
     style.innerHTML = '@keyframes cesium-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
     document.head.appendChild(style);
 
-    // Собираем DOM
+    // собираем dom
     overlay.appendChild(text);
     overlay.appendChild(spinner);
     document.body.appendChild(overlay);
 
-    // Блокируем управление на время загрузки
+    // блокируем управление на время загрузки
     viewer.scene.screenSpaceCameraController.enableInputs = false;
 
-    // 4. Логика ожидания загрузки
-    // Чтобы экран не моргал, если кэш быстрый, добавим минимальное время показа (например, 1.5 сек)
+    // 4 логика ожидания загрузки
+    // чтобы экран не моргал если кэш быстрый добавим минимальное время показа (например 15 сек)
     let minTimeElapsed = false;
     setTimeout(() => { minTimeElapsed = true; }, 1500);
 
-    // Проверяем статус загрузки тайлов каждые 100мс
+    // проверяем статус загрузки тайлов каждые 100мс
     const checkInterval = setInterval(() => {
-        // globe.tilesLoaded = true, когда для текущего кадра всё скачано
+        // globetilesloaded true когда для текущего кадра всё скачано
         if (viewer.scene.globe.tilesLoaded && minTimeElapsed) {
             clearInterval(checkInterval);
             
-            // Начинаем плавно растворять черный экран
+            // начинаем плавно растворять черный экран
             overlay.style.opacity = '0';
             
-            // СРАЗУ запускаем анимацию полета, чтобы планета эффектно вылетала из темноты
+            // сразу запускаем анимацию полета чтобы планета эффектно вылетала из темноты
             if (onReadyCallback) onReadyCallback();
             
-            // Через 1.5 секунды полностью удаляем HTML элементы из памяти
+            // через 15 секунды полностью удаляем html элементы из памяти
             setTimeout(() => { 
                 overlay.remove(); 
                 style.remove();

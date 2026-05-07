@@ -1,6 +1,8 @@
 (function () {
+    // объявление функции
     function initEarthquakeVisualization(viewer) {
         let container = document.getElementById('eqUiContainer');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'eqUiContainer';
@@ -34,15 +36,17 @@
         let dataSource = new Cesium.CustomDataSource('Earthquakes');
         viewer.dataSources.add(dataSource);
 
-        // === КЛАСТЕРИЗАЦИЯ ===
+        // кластеризация
         dataSource.clustering.enabled = true;
         dataSource.clustering.pixelRange = 60;
         dataSource.clustering.minimumClusterSize = 3;
 
-        // Кэш иконок для кластеров (по количеству)
+        // кэш иконок для кластеров (по количеству)
         const clusterPinCache = {};
+        // объявление функции
         function getClusterPin(count, colorHex) {
             const key = `${count}_${colorHex}`;
+            // проверка условия
             if (clusterPinCache[key]) return clusterPinCache[key];
             
             const canvas = document.createElement('canvas');
@@ -67,13 +71,19 @@
             ctx.fillText(text, cx, cy);
             
             clusterPinCache[key] = canvas;
+            // возврат результата
             return canvas;
         }
 
+        // объявление функции
         function getClusterColor(count) {
+            // проверка условия
             if (count >= 50) return '#FF2200';
+            // проверка условия
             if (count >= 20) return '#FF6600';
+            // проверка условия
             if (count >= 10) return '#FFAA00';
+            // возврат результата
             return '#FFEE00';
         }
 
@@ -93,7 +103,7 @@
             cluster.billboard.disableDepthTestDistance = Number.POSITIVE_INFINITY;
             cluster.billboard.heightReference = Cesium.HeightReference.NONE; 
             
-            // Если кластер появился в новой позиции, запускаем анимацию "вырастания"
+            // если кластер появился в новой позиции запускаем анимацию "вырастания"
             if (!cluster.billboard._lastPos || !Cesium.Cartesian3.equalsEpsilon(cluster.billboard._lastPos, cluster.position, 1.0)) {
                 cluster.billboard._currentScale = 0.0;
                 cluster.billboard.scale = 0.0;
@@ -102,22 +112,30 @@
             
             clusterSet.add(cluster.billboard);
 
-            // Отмечаем точки, которые сейчас внутри этого кластера
+            // отмечаем точки которые сейчас внутри этого кластера
             clusteredEntities.forEach(e => {
                 e._lastClusteredFrame = frameCount;
             });
         });
 
+        // объявление функции
         function getColorByMag(mag) {
+            // проверка условия
             if (mag >= 7) return '#FF2200';
+            // проверка условия
             if (mag >= 6) return '#FF6600';
+            // проверка условия
             if (mag >= 5) return '#FFAA00';
+            // проверка условия
             if (mag >= 4) return '#FFEE00';
+            // возврат результата
             return '#AAFFAA';
         }
 
         const pinCache = {};
+        // объявление функции
         function getOrCreatePin(colorHex) {
+            // проверка условия
             if (pinCache[colorHex]) return pinCache[colorHex];
 
             const canvas = document.createElement('canvas');
@@ -130,41 +148,53 @@
             ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 2 * Math.PI); ctx.fillStyle = colorHex; ctx.fill();
             
             pinCache[colorHex] = canvas;
+            // возврат результата
             return canvas;
         }
 
-        // Кэши для полного исключения выделения памяти (GC) при отрисовке прозрачности на горизонте
+        // кэши для полного исключения выделения памяти (gc) при отрисовке прозрачности на горизонте
         const colorCache = {};
         const outlineCache = {};
         
+        // объявление функции
         function getAlphaColor(alpha) {
             const a = Math.round(alpha * 100);
+            // проверка условия
             if (colorCache[a]) return colorCache[a];
             colorCache[a] = new Cesium.Color(1, 1, 1, alpha);
+            // возврат результата
             return colorCache[a];
         }
         
+        // объявление функции
         function getAlphaOutline(alpha) {
             const a = Math.round(alpha * 100);
+            // проверка условия
             if (outlineCache[a]) return outlineCache[a];
             outlineCache[a] = new Cesium.Color(0, 0, 0, alpha);
+            // возврат результата
             return outlineCache[a];
         }
 
-        // === ПЛАВНОЕ ИСЧЕЗНОВЕНИЕ И АНИМАЦИЯ ===
+        // плавное исчезновение и анимация
         const entityPositions = []; 
         let edgeFadeHandle = null;
 
+        // объявление функции
         function setupEdgeFade() {
+            // проверка условия
             if (edgeFadeHandle) return;
             edgeFadeHandle = viewer.scene.preUpdate.addEventListener(function () {
                 frameCount++;
+                // проверка условия
                 if (!isActive || entityPositions.length === 0) return;
 
                 const cameraPos = viewer.camera.positionWC;
+                // проверка условия
                 if (!cameraPos) return;
 
                 const camMag = Cesium.Cartesian3.magnitude(cameraPos);
+                // проверка условия
                 if (camMag === 0) return;
 
                 const earthR = 6378137.0;
@@ -175,7 +205,7 @@
                 const fadeStartCos = Math.cos(horizonAngle * 0.70);
                 const cosRange = fadeStartCos - horizonCos;
 
-                // 1. Плавное скрытие одиночных точек
+                // 1 плавное скрытие одиночных точек
                 for (let i = 0; i < entityPositions.length; i++) {
                     const item = entityPositions[i];
                     const entity = item.entity;
@@ -184,56 +214,65 @@
 
                     const isClustered = entity._lastClusteredFrame >= frameCount - 2;
 
-                    // ТОЧКА ОТСОЕДИНИЛАСЬ: сбрасываем масштаб для анимации появления
+                    // точка отсоединилась: сбрасываем масштаб для анимации появления
                     if (!isClustered && entity._wasClustered) {
                         entity._currentScale = 0.0;
                     }
                     entity._wasClustered = isClustered;
 
-                    // Ускоренная анимация масштабирования (шаг 0.20 вместо 0.08)
+                    // ускоренная анимация масштабирования (шаг 020 вместо 008)
                     if (!isClustered && entity._currentScale < 1.0) {
                         entity._currentScale += 0.20; 
+                        // проверка условия
                         if (entity._currentScale > 1.0) entity._currentScale = 1.0;
                     }
 
                     const dot = Cesium.Cartesian3.dot(cameraPos, pPos) / (camMag * pMag);
 
                     let alpha = 1.0;
+                    // проверка условия
                     if (dot < horizonCos) {
                         alpha = 0.0; 
                     } else if (dot < fadeStartCos && cosRange > 0.0001) {
                         alpha = Math.max(0.0, Math.min(1.0, (dot - horizonCos) / cosRange));
                     }
+                    // проверка условия
                     if (alpha < 0.02) alpha = 0.0;
 
-                    // Значения применяются автоматически через CallbackProperty
+                    // значения применяются автоматически через callbackproperty
                     entity._currentAlpha = alpha;
                 }
 
-                // 2. Плавное скрытие и анимация самих кластеров
+                // 2 плавное скрытие и анимация самих кластеров
                 clusterSet.forEach(bb => {
+                    // проверка условия
                     if (!bb.show) return; 
                     const pPos = bb.position;
+                    // проверка условия
                     if (!pPos) return;
 
                     const pMag = Cesium.Cartesian3.magnitude(pPos);
                     const dot = Cesium.Cartesian3.dot(cameraPos, pPos) / (camMag * pMag);
 
                     let alpha = 1.0;
+                    // проверка условия
                     if (dot < horizonCos) {
                         alpha = 0.0;
                     } else if (dot < fadeStartCos && cosRange > 0.0001) {
                         alpha = Math.max(0.0, Math.min(1.0, (dot - horizonCos) / cosRange));
                     }
+                    // проверка условия
                     if (alpha < 0.02) alpha = 0.0;
 
+                    // проверка условия
                     if (!bb.color || bb.color.alpha !== alpha) {
                         bb.color = new Cesium.Color(1, 1, 1, alpha);
                     }
 
-                    // Ускоренная анимация появления кластера (вырастает из нуля)
+                    // ускоренная анимация появления кластера (вырастает из нуля)
                     if (bb._currentScale !== undefined && bb._currentScale < 1.0) {
                         bb._currentScale += 0.20;
+                        // проверка условия
                         if (bb._currentScale > 1.0) bb._currentScale = 1.0;
                         bb.scale = bb._currentScale;
                     }
@@ -241,27 +280,33 @@
             });
         }
 
+        // объявление функции
         function teardownEdgeFade() {
+            // проверка условия
             if (edgeFadeHandle) {
                 edgeFadeHandle();
                 edgeFadeHandle = null;
             }
         }
-        // ============================================
+        //
 
         btn.addEventListener('click', async () => {
+            // проверка условия
             if (isBusy) return;
             isBusy = true;
             btn.style.opacity = '0.5';
 
+            // начало блока перехвата ошибок
             try {
                 isActive = !isActive;
                 
+                // проверка условия
                 if (isActive) {
                     const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка данных USGS...') : null;
                     
                     await new Promise(r => setTimeout(r, 50)); 
                     
+                    // начало блока перехвата ошибок
                     try {
                         dataSource.entities.removeAll();
                         entityPositions.length = 0; 
@@ -281,7 +326,7 @@
                             const place = props.place || 'Неизвестно';
                             const timeStr = new Date(props.time).toLocaleString('ru-RU');
 
-                            // Вычисляем 3D-позицию заранее
+                            // вычисляем 3dпозицию заранее
                             const position = Cesium.Cartesian3.fromDegrees(coords[0], coords[1], 0);
                             const pMag = Cesium.Cartesian3.magnitude(position);
 
@@ -293,11 +338,13 @@
                                     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
                                     heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                                    // Используем CallbackProperty для анимации без GC
+                                    // используем callbackproperty для анимации без gc
                                     scale: new Cesium.CallbackProperty(function() {
+                                        // возврат результата
                                         return entity._currentScale !== undefined ? entity._currentScale : 1.0;
                                     }, false),
                                     color: new Cesium.CallbackProperty(function() {
+                                        // возврат результата
                                         return getAlphaColor(entity._currentAlpha !== undefined ? entity._currentAlpha : 1.0);
                                     }, false)
                                 },
@@ -305,10 +352,12 @@
                                     text: `${place}\nM${mag.toFixed(1)} · Глубина: ${depth} км · ${timeStr}`,
                                     font: 'bold 16px sans-serif',
                                     fillColor: new Cesium.CallbackProperty(function() {
+                                        // возврат результата
                                         return getAlphaColor(entity._currentAlpha !== undefined ? entity._currentAlpha : 1.0);
                                     }, false),
                                     style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                                     outlineColor: new Cesium.CallbackProperty(function() {
+                                        // возврат результата
                                         return getAlphaOutline(entity._currentAlpha !== undefined ? entity._currentAlpha : 1.0);
                                     }, false),
                                     outlineWidth: 5,
@@ -330,7 +379,7 @@
                                 `
                             });
 
-                            // Инициализация переменных для отслеживания состояния
+                            // инициализация переменных для отслеживания состояния
                             entity._currentScale = 0.0; 
                             entity._currentAlpha = 1.0;
                             entity._wasClustered = false;
@@ -341,6 +390,7 @@
                         
                         dataSource.entities.resumeEvents();
                     } finally {
+                        // проверка условия
                         if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
                     }
                     dataSource.show = true;

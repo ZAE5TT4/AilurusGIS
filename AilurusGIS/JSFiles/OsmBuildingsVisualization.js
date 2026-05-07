@@ -1,9 +1,9 @@
 (function () {
-    /**
-     * Интеграция слоя Cesium OSM Buildings с автоматическим рельефом
-     */
+    /* * * интеграция слоя cesium osm buildings с автоматическим рельефом */
+    // объявление функции
     function initOsmBuildingsVisualization(viewer) {
         let container = document.getElementById('dnUiContainer');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'dnUiContainer';
@@ -38,20 +38,24 @@
         let buildingsTileset = null;
 
         btn.addEventListener('click', async () => {
+            // проверка условия
             if (isBusy) return;
             isBusy = true;
             btn.style.opacity = '0.5';
 
+            // начало блока перехвата ошибок
             try {
                 isActive = !isActive;
                 
+                // проверка условия
                 if (isActive) {
                     const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка 3D Зданий...') : null;
+                    // начало блока перехвата ошибок
                     try {
-                        // 1. Сначала включаем рельеф
+                        // 1 сначала включаем рельеф
                         viewer.terrainProvider = await Cesium.createWorldTerrainAsync();
                         
-                        // 2. Затем подгружаем здания
+                        // 2 затем подгружаем здания
                         if (!buildingsTileset) {
                             buildingsTileset = await Cesium.Cesium3DTileset.fromIonAssetId(96188);
                             viewer.scene.primitives.add(buildingsTileset);
@@ -59,11 +63,12 @@
                             buildingsTileset.show = true;
                         }
                     } finally {
+                        // проверка условия
                         if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
                     }
                     btn.style.backgroundColor = 'rgba(38, 84, 121, 1)';
                 } else {
-                    // Отключаем здания и возвращаем гладкий эллипсоид
+                    // отключаем здания и возвращаем гладкий эллипсоид
                     if (buildingsTileset) {
                         buildingsTileset.show = false;
                     }
@@ -76,6 +81,7 @@
                 isActive = false;
                 btn.style.backgroundColor = '';
                 viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+                // проверка условия
                 if (buildingsTileset) buildingsTileset.show = false;
             } finally {
                 isBusy = false;

@@ -1,22 +1,22 @@
-// Координаты центра Казахстана
+// координаты центра казахстана
 const kazCenter = Cesium.Cartesian3.fromDegrees(66.9237, 48.0196, 25000000); // высота прошлая 1,000,000 м от Земли, сейчас 25,000,000
 
-// Устанавливаем Казахстан камерой по умолчанию СРАЗУ при загрузке страницы (по желанию)
-// viewer.camera.setView({
-//     destination: kazCenter,
-//     orientation: {
-//         heading: Cesium.Math.toRadians(0.0),    // на север
-//         pitch: Cesium.Math.toRadians(-90.0),    // смотрим ровно вниз
-//         roll: 0.0
-//     }
+// устанавливаем казахстан камерой по умолчанию сразу при загрузке страницы (по желанию)
+// viewercamerasetview({
+// destination: kazcenter
+// orientation: {
+// heading: cesiummathtoradians(00) // на север
+// pitch: cesiummathtoradians(900) // смотрим ровно вниз
+// roll: 00
+// }
 // });
 
-// Переопределяем поведение кнопки Home
+// переопределяем поведение кнопки home
 viewer.homeButton.viewModel.command.beforeExecute.addEventListener(function(e) {
-    // Отменяем стандартный полет в США/глобальный вид
+    // отменяем стандартный полет в сша/глобальный вид
     e.cancel = true;
     
-    // Запускаем свой полет в Казахстан
+    // запускаем свой полет в казахстан
     viewer.camera.flyTo({
         destination: kazCenter,
         duration: 2.0, // Длительность анимации полета в секундах

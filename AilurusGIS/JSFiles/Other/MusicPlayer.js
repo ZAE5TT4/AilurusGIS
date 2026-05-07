@@ -1,13 +1,12 @@
-/**
- * Музыкальный плеер.
- * @param {Cesium.Viewer} viewer
- */
+/* * * музыкальный плеер * @param {cesiumviewer} viewer */
+// объявление функции
 function initMusicPlayer(viewer) {
     const audio = new Audio('Music/AilurusGIS.ogg');
     audio.loop = true;
     audio.volume = 0.5;
 
     let controlsContainer = document.getElementById('leftBottomControls');
+    // проверка условия
     if (!controlsContainer) {
         controlsContainer = document.createElement('div');
         controlsContainer.id = 'leftBottomControls';
@@ -46,6 +45,7 @@ function initMusicPlayer(viewer) {
     let isPlaying = false;
     musicButton.innerHTML = iconMuted;
     musicButton.addEventListener('click', function () {
+        // проверка условия
         if (isPlaying) {
             audio.pause();
             musicButton.innerHTML = iconMuted;

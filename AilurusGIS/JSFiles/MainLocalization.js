@@ -1,7 +1,4 @@
-/**
- * Скрипт локализации для главной страницы (index_main.html).
- * Синхронизируется с картой через localStorage ('ailurus_lang').
- */
+/* * * скрипт локализации для главной страницы (index_mainhtml) * синхронизируется с картой через localstorage ('ailurus_lang') */
 
 const mainDictionary = {
     "title": {
@@ -99,7 +96,7 @@ const mainDictionary = {
         en: "Author's social networks:",
         kz: "Автордың әлеуметтік желілері:"
     },
-    // --- НОВЫЕ ТЕКСТЫ ДЛЯ СКРИНШОТОВ ---
+    // новые тексты для скриншотов
     "showcase1_title": {
         ru: "Динамическая погода и ветра",
         en: "Dynamic Weather & Winds",
@@ -142,34 +139,36 @@ const mainDictionary = {
     }
 };
 
-// Функция переключения языка
+// функция переключения языка
 function changeLanguage(lang) {
-    // Сохраняем выбор, чтобы на карте (index_cesium.html) открылся тот же язык
+    // сохраняем выбор чтобы на карте (index_cesiumhtml) открылся тот же язык
     localStorage.setItem('ailurus_lang', lang);
     
-    // Переводим все элементы с атрибутом data-i18n
+    // переводим все элементы с атрибутом datai18n
     const elements = document.querySelectorAll('[data-i18n]');
     elements.forEach(el => {
         const key = el.getAttribute('data-i18n');
+        // проверка условия
         if (mainDictionary[key] && mainDictionary[key][lang]) {
             el.textContent = mainDictionary[key][lang];
         }
     });
 
-    // Устанавливаем язык документа
+    // устанавливаем язык документа
     document.documentElement.lang = lang;
 }
 
-// При загрузке страницы проверяем сохраненный язык
+// при загрузке страницы проверяем сохраненный язык
 document.addEventListener("DOMContentLoaded", () => {
     let currentLang = localStorage.getItem('ailurus_lang') || 'ru';
     
-    // Устанавливаем select в правильное положение
+    // устанавливаем select в правильное положение
     const langSelect = document.getElementById('langSwitcher');
+    // проверка условия
     if (langSelect) {
         langSelect.value = currentLang;
     }
 
-    // Применяем перевод
+    // применяем перевод
     changeLanguage(currentLang);
 });

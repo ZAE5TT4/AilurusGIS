@@ -1,6 +1,8 @@
 (function () {
+    // объявление функции
     function initDayNightVisualization(viewer) {
         let container = document.getElementById('dnUiContainer');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'dnUiContainer';
@@ -71,6 +73,7 @@
         const animToggle = document.getElementById('animTimeToggle');
 
         timeSlider.addEventListener('input', (e) => {
+            // проверка условия
             if (!originalTime) return;
             const hoursOffset = parseFloat(e.target.value);
             timeVal.textContent = hoursOffset === 0 ? "Сейчас" : (hoursOffset > 0 ? `+${hoursOffset}ч` : `${hoursOffset}ч`);
@@ -87,6 +90,7 @@
         btn.addEventListener('click', async () => {
             isActive = !isActive;
             
+            // проверка условия
             if (isActive) {
                 origLighting = viewer.scene.globe.enableLighting;
 
@@ -99,6 +103,7 @@
                 nightLayer = viewer.imageryLayers.addImageryProvider(provider);
                 nightLayer.dayAlpha = 0.0;
                 nightLayer.nightAlpha = 1.0;
+                // проверка условия
                 if (nightLayer.hasOwnProperty('twilightAlpha') || 'twilightAlpha' in nightLayer) {
                     nightLayer.twilightAlpha = 0.0;
                 }
@@ -118,6 +123,7 @@
                 timeVal.textContent = "Сейчас";
                 animToggle.checked = false;
 
+                // проверка условия
                 if (nightLayer) {
                     viewer.imageryLayers.remove(nightLayer);
                     nightLayer = null;

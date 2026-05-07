@@ -1,7 +1,9 @@
 (function () {
+    // объявление функции
     function initTectonicPlatesVisualization(viewer) {
-        // Прикрепляем к 1-му ряду (Батиметрия)
+        // прикрепляем к 1му ряду (батиметрия)
         let container = document.getElementById('bathymetryUiContainer');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'bathymetryUiContainer';
@@ -14,7 +16,7 @@
             viewer.container.appendChild(container);
         }
 
-        // Принудительно задаем gap, если контейнер создали не мы
+        // принудительно задаем gap если контейнер создали не мы
         container.style.display = 'flex';
         container.style.gap = '10px';
 
@@ -35,24 +37,31 @@
         let dataSource = null;
 
         btn.addEventListener('click', async () => {
+            // проверка условия
             if (isBusy) return;
             isBusy = true;
             btn.style.opacity = '0.5';
 
+            // начало блока перехвата ошибок
             try {
                 isActive = !isActive;
                 
+                // проверка условия
                 if (isActive) {
+                    // проверка условия
                     if (!dataSource) {
                         const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка разломов...') : null;
+                        // начало блока перехвата ошибок
                         try {
                             dataSource = await Cesium.GeoJsonDataSource.load('GeoData/TectonicPlates/gem_active_faults.geojson', {
                                 clampToGround: true 
                             });
                             
                             const entities = dataSource.entities.values;
+                            // начало цикла
                             for (let i = 0; i < entities.length; i++) {
                                 const entity = entities[i];
+                                // проверка условия
                                 if (entity.polyline) {
                                     entity.polyline.material = new Cesium.PolylineGlowMaterialProperty({
                                         glowPower: 0.15,
@@ -64,6 +73,7 @@
                             }
                             viewer.dataSources.add(dataSource);
                         } finally {
+                            // проверка условия
                             if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
                         }
                     } else {
@@ -71,6 +81,7 @@
                     }
                     btn.style.backgroundColor = 'rgba(38, 84, 121, 1)';
                 } else {
+                    // проверка условия
                     if (dataSource) dataSource.show = false;
                     btn.style.backgroundColor = '';
                 }

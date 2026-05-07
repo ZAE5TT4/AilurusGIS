@@ -1,5 +1,6 @@
 (function() {
     let container = document.getElementById('global-loading-indicator');
+    // проверка условия
     if (!container) {
         container = document.createElement('div');
         container.id = 'global-loading-indicator';
@@ -50,6 +51,7 @@
             const id = nextId++;
             activeTasks.set(id, text || 'Загрузка...');
             this._update();
+            // возврат результата
             return id;
         },
         hide: function(id) {
@@ -57,6 +59,7 @@
             this._update();
         },
         _update: function() {
+            // проверка условия
             if (activeTasks.size > 0) {
                 const tasksArray = Array.from(activeTasks.values());
                 textSpan.textContent = tasksArray[tasksArray.length - 1];

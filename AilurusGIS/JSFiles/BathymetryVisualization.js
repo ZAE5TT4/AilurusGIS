@@ -1,14 +1,10 @@
 (function () {
-    /**
-     * Скрипт визуализации батиметрии (рельефа морского дна) с панелью настроек.
-     * ИСПРАВЛЕНИЯ:
-     * - Фикс разрывов и изгибов геометрии (Tearing) при отключении за счет принудительного сброса кэша тайлов.
-     * - Фикс краша WebGL "bindTexture: deleted object" за счет отложенного удаления шейдеров.
-     * @param {Cesium.Viewer} viewer 
-     */
+    /* * * скрипт визуализации батиметрии (рельефа морского дна) с панелью настроек * исправления: * фикс разрывов и изгибов геометрии (tearing) при отключении за счет принудительного сброса кэша тайлов * фикс краша webgl "bindtexture: deleted object" за счет отложенного удаления шейдеров * @param {cesiumviewer} viewer */
+    // объявление функции
     function initBathymetryVisualization(viewer) {
-        // --- 1. СОЗДАНИЕ КОНТЕЙНЕРА И КНОПКИ ---
+        // 1 создание контейнера и кнопки
         let container = document.getElementById('bathymetryUiContainer');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'bathymetryUiContainer';
@@ -26,7 +22,7 @@
                     transition: left 0.3s ease-in-out !important;
                 }
                 
-                /* Адаптация панели настроек батиметрии под мобильные устройства */
+                /* адаптация панели настроек батиметрии под мобильные устройства */
                 @media (max-width: 768px) {
                     #bathymetrySettingsPanel {
                         width: 230px !important;
@@ -82,7 +78,7 @@
         btnBathy.appendChild(iconBathy);
         container.appendChild(btnBathy);
 
-        // --- 2. СОЗДАНИЕ ПАНЕЛИ НАСТРОЕК ---
+        // 2 создание панели настроек
         const settingsPanel = document.createElement('div');
         settingsPanel.id = 'bathymetrySettingsPanel'; // Добавили ID для CSS-стилей
         settingsPanel.style.position = 'absolute';
@@ -104,7 +100,7 @@
         
         viewer.container.appendChild(settingsPanel);
 
-        // Добавили классы bathy-title и bathy-label для адаптивного изменения размеров шрифта
+        // добавили классы bathytitle и bathylabel для адаптивного изменения размеров шрифта
         settingsPanel.innerHTML = `
             <div class="bathy-title" style="font-weight: bold; font-size: 14px; margin-bottom: 5px;">Высота / Глубина</div>
             <div style="display: flex; align-items: center; gap: 8px;">
@@ -150,6 +146,7 @@
         const toggleIcon = document.getElementById('bathyToggleIcon');
 
         toggleOptionsBtn.addEventListener('click', () => {
+            // проверка условия
             if (optionsContainer.style.display === 'none') {
                 optionsContainer.style.display = 'flex';
                 toggleIcon.textContent = '▲';
@@ -159,7 +156,7 @@
             }
         });
 
-        // --- 3. ПЕРЕМЕННЫЕ И КОНСТАНТЫ ---
+        // 3 переменные и константы
         let isActive = false;
         let isBusy = false;
         
@@ -171,7 +168,7 @@
         let originalLightObject = null;
         let preRenderListener = null;
 
-        // Настройки из панели
+        // настройки из панели
         let showContourLines = true;
         let showElevationColorRamp = true;
         let invertContourLines = false;
@@ -184,10 +181,12 @@
         
         const scratchNormal = new Cesium.Cartesian3();
 
-        // --- 4. ФУНКЦИИ ГЕНЕРАЦИИ МАТЕРИАЛОВ И ЦВЕТОВ ---
+        // 4 функции генерации материалов и цветов
         
         let _colorRampDataUrl = null;
+        // объявление функции
         function getColorRamp() {
+            // проверка условия
             if (_colorRampDataUrl) return _colorRampDataUrl;
             const ramp = document.createElement("canvas");
             ramp.width = 100;
@@ -211,6 +210,7 @@
             ctx.fillStyle = grd;
             ctx.fillRect(0, 0, ramp.width, ramp.height);
             _colorRampDataUrl = ramp.toDataURL('image/png');
+            // возврат результата
             return _colorRampDataUrl;
         }
 
@@ -230,7 +230,9 @@
         uiRampCanvas.style.height = '100%';
         document.getElementById('bathyRampContainer').appendChild(uiRampCanvas);
 
+        // объявление функции
         function getElevationContourMaterial() {
+            // возврат результата
             return new Cesium.Material({
                 fabric: {
                     type: "ElevationColorContour",
@@ -247,12 +249,15 @@
             });
         }
 
+        // объявление функции
         function updateGlobeMaterial() {
             const currentMode = (showContourLines ? "CONTOUR" : "") + (showElevationColorRamp ? "COLOR" : "");
             const globe = viewer.scene.globe;
 
+            // проверка условия
             if (!globe.material || globe.material._bathyMode !== currentMode) {
                 let material;
+                // проверка условия
                 if (showContourLines && showElevationColorRamp) {
                     material = getElevationContourMaterial();
                     material.materials.elevationRampMaterial.uniforms.image = getColorRamp();
@@ -265,6 +270,7 @@
                     material = undefined;
                 }
 
+                // проверка условия
                 if (material) {
                     material._bathyMode = currentMode;
                 }
@@ -272,8 +278,10 @@
             }
 
             const material = globe.material;
+            // проверка условия
             if (!material) return;
 
+            // проверка условия
             if (showContourLines && showElevationColorRamp) {
                 let shadingUniforms = material.materials.elevationRampMaterial.uniforms;
                 shadingUniforms.minimumHeight = minHeight * viewer.scene.verticalExaggeration;
@@ -295,28 +303,35 @@
             }
         }
 
+        // объявление функции
         function updateGlobeMaterialUniforms(zoomMagnitude) {
             const material = viewer.scene.globe.material;
+            // проверка условия
             if (!Cesium.defined(material)) return;
 
             const spacing = 5.0 * Math.pow(10, Math.floor(4 * zoomMagnitude));
+            // проверка условия
             if (showContourLines) {
                 const uniforms = showElevationColorRamp ? material.materials.contourMaterial.uniforms : material.uniforms;
                 uniforms.spacing = spacing * viewer.scene.verticalExaggeration;
             }
 
+            // проверка условия
             if (showElevationColorRamp) {
                 const uniforms = showContourLines ? material.materials.elevationRampMaterial.uniforms : material.uniforms;
                 uniforms.spacing = spacing * viewer.scene.verticalExaggeration;
             }
         }
 
+        // объявление функции
         function onPreRender(scene, time) {
+            // проверка условия
             if (!isActive) return;
             const camera = scene.camera;
             const globe = scene.globe;
             const cameraMaxHeight = globe.ellipsoid.maximumRadius * 2;
             
+            // проверка условия
             if (globe.enableLighting && scene.light instanceof Cesium.DirectionalLight) {
                 const surfaceNormal = globe.ellipsoid.geodeticSurfaceNormal(camera.positionWC, scratchNormal);
                 const negativeNormal = Cesium.Cartesian3.negate(surfaceNormal, surfaceNormal);
@@ -331,31 +346,39 @@
             updateGlobeMaterialUniforms(zoomMagnitude);
         }
 
-        // --- 5. ЛОГИКА ОТКЛЮЧЕНИЯ/ВКЛЮЧЕНИЯ ПОСТ-ПРОЦЕССОВ ---
+        // 5 логика отключения/включения постпроцессов
         function toggleCustomShaders(enableBathy) {
+            // проверка условия
             if (enableBathy) {
+                // проверка условия
                 if (viewer.scene.postProcessStages.bloom) {
                     viewer.scene.postProcessStages.bloom._wasEnabledBeforeBathy = viewer.scene.postProcessStages.bloom.enabled;
                     viewer.scene.postProcessStages.bloom.enabled = false;
                 }
 
+                // начало цикла
                 for (let i = 0; i < viewer.scene.postProcessStages.length; i++) {
                     const stage = viewer.scene.postProcessStages.get(i);
+                    // проверка условия
                     if (stage === viewer.scene.postProcessStages.fxaa) continue; 
                     
+                    // проверка условия
                     if (stage.enabled) {
                         stage._wasEnabledBeforeBathy = true;
                         stage.enabled = false;
                     }
                 }
             } else {
+                // проверка условия
                 if (viewer.scene.postProcessStages.bloom && viewer.scene.postProcessStages.bloom._wasEnabledBeforeBathy !== undefined) {
                     viewer.scene.postProcessStages.bloom.enabled = viewer.scene.postProcessStages.bloom._wasEnabledBeforeBathy;
                     delete viewer.scene.postProcessStages.bloom._wasEnabledBeforeBathy;
                 }
 
+                // начало цикла
                 for (let i = 0; i < viewer.scene.postProcessStages.length; i++) {
                     const stage = viewer.scene.postProcessStages.get(i);
+                    // проверка условия
                     if (stage._wasEnabledBeforeBathy) {
                         stage.enabled = true;
                         delete stage._wasEnabledBeforeBathy;
@@ -364,7 +387,7 @@
             }
         }
 
-        // --- 6. ПРИВЯЗКА СОБЫТИЙ ПАНЕЛИ ---
+        // 6 привязка событий панели
         document.getElementById('bathyLightToggle').addEventListener('change', (e) => {
             viewer.scene.globe.enableLighting = e.target.checked;
         });
@@ -399,24 +422,28 @@
             viewer.scene.requestRender(); 
         });
 
-        // --- 7. ОСНОВНАЯ ЛОГИКА КНОПКИ ---
+        // 7 основная логика кнопки
         btnBathy.addEventListener('click', async () => {
+            // проверка условия
             if (isBusy) return;
             isBusy = true;
             btnBathy.style.pointerEvents = 'none';
             btnBathy.style.opacity = '0.5';
 
+            // начало блока перехвата ошибок
             try {
                 isActive = !isActive;
                 
+                // проверка условия
                 if (isActive) {
-                    // ВКЛЮЧЕНИЕ
+                    // включение
                     const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка батиметрии дна...') : null;
+                    // начало блока перехвата ошибок
                     try {
-                        // Загружаем батиметрию каждый раз заново, чтобы избежать использования удаленных из памяти объектов
+                        // загружаем батиметрию каждый раз заново чтобы избежать использования удаленных из памяти объектов
                         bathyTerrain = await Cesium.createWorldBathymetryAsync({ requestVertexNormals: true });
                         
-                        // Запоминаем текущие настройки камеры и геометрии
+                        // запоминаем текущие настройки камеры и геометрии
                         originalMaxTilt = viewer.scene.screenSpaceCameraController.maximumTiltAngle;
                         originalExaggeration = viewer.scene.verticalExaggeration;
                         originalMaxError = viewer.scene.globe.maximumScreenSpaceError;
@@ -447,30 +474,32 @@
                         toggleIcon.textContent = '▼';
 
                     } finally {
+                        // проверка условия
                         if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
                     }
                 } else {
-                    // ВЫКЛЮЧЕНИЕ
+                    // выключение
                     settingsPanel.style.display = 'none';
                     
-                    // 1. Сбрасываем параметры искажения ДО смены рельефа, чтобы предотвратить "разрывы" (tearing)
+                    // 1 сбрасываем параметры искажения до смены рельефа чтобы предотвратить "разрывы" (tearing)
                     viewer.scene.verticalExaggeration = originalExaggeration !== null ? originalExaggeration : 1.0;
                     viewer.scene.screenSpaceCameraController.maximumTiltAngle = originalMaxTilt !== null ? originalMaxTilt : Math.PI;
                     viewer.scene.globe.maximumScreenSpaceError = originalMaxError !== null ? originalMaxError : 2.0;
 
-                    // 2. БЕЗОПАСНОЕ восстановление рельефа (полная очистка кэша тайлов через BaseLayerPicker)
-                    // Это гарантирует, что старые искаженные тайлы будут удалены и геометрия полностью перестроится.
+                    // 2 безопасное восстановление рельефа (полная очистка кэша тайлов через baselayerpicker)
+                    // это гарантирует что старые искаженные тайлы будут удалены и геометрия полностью перестроится
                     if (viewer.baseLayerPicker && viewer.baseLayerPicker.viewModel) {
                         const vm = viewer.baseLayerPicker.viewModel;
                         const isFunc = typeof vm.selectedTerrain === 'function';
                         const selected = isFunc ? vm.selectedTerrain() : vm.selectedTerrain;
                         
-                        // Временно ставим undefined, чтобы сбросить текущую геометрию
+                        // временно ставим undefined чтобы сбросить текущую геометрию
                         if (isFunc) vm.selectedTerrain(undefined);
                         else vm.selectedTerrain = undefined;
 
-                        // Возвращаем исходный рельеф пользователя с небольшой задержкой
+                        // возвращаем исходный рельеф пользователя с небольшой задержкой
                         setTimeout(() => {
+                            // проверка условия
                             if (isFunc) vm.selectedTerrain(selected);
                             else vm.selectedTerrain = selected;
                         }, 50);
@@ -478,20 +507,22 @@
                         viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
                     }
                     
-                    // 3. Возвращаем свет и шейдеры
+                    // 3 возвращаем свет и шейдеры
                     viewer.scene.globe.enableLighting = originalLighting !== null ? originalLighting : false;
                     viewer.scene.light = originalLightObject || new Cesium.SunLight();
                     toggleCustomShaders(false);
                     
+                    // проверка условия
                     if (preRenderListener) {
                         preRenderListener(); 
                         preRenderListener = null;
                     }
                     
-                    // 4. БЕЗОПАСНОЕ удаление шейдерного материала с задержкой 
-                    // (Предотвращает краш WebGL: "bindTexture attempt to use a deleted object")
-                    // Задержка дает движку время дорендерить и выгрузить старые куски рельефа перед удалением их текстур.
+                    // 4 безопасное удаление шейдерного материала с задержкой
+                    // (предотвращает краш webgl: "bindtexture attempt to use a deleted object")
+                    // задержка дает движку время дорендерить и выгрузить старые куски рельефа перед удалением их текстур
                     setTimeout(() => {
+                        // проверка условия
                         if (!isActive) {
                             viewer.scene.globe.material = undefined;
                             bathyTerrain = null; // Полностью сбрасываем батиметрию из памяти
@@ -519,7 +550,4 @@
     window.initBathymetryVisualization = initBathymetryVisualization;
 })();
 
-/* * This code for Bathymetry visualization, including the dynamic 
- * elevation materials, contour lines, custom lighting adaptation, 
- * and UI logic, was adapted from the official Cesium Sandcastle examples. 
- */
+/* * this code for bathymetry visualization including the dynamic * elevation materials contour lines custom lighting adaptation * and ui logic was adapted from the official cesium sandcastle examples */

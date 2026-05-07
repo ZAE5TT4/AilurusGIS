@@ -1,9 +1,5 @@
-﻿/**
- * Глобальная тепловая карта и умный поиск погоды по городам.
- * Экономит запросы к API с помощью LocalStorage и добавляет интерфейс.
- * Теперь с поддержкой динамического поиска городов через серверную БД SQLite.
- * @param {Cesium.Viewer} viewer 
- */
+﻿/* * * глобальная тепловая карта и умный поиск погоды по городам * экономит запросы к api с помощью localstorage и добавляет интерфейс * теперь с поддержкой динамического поиска городов через серверную бд sqlite * @param {cesiumviewer} viewer */
+// объявление функции
 async function initWeatherVisualization(viewer) {
     console.log('WeatherVisualization: Инициализация интерфейса и тепловой карты...');
 
@@ -21,62 +17,83 @@ async function initWeatherVisualization(viewer) {
         window.openMeteoApiKey ||
         '';
 
+    // объявление функции
     function buildOpenMeteoUrl(paramsObject) {
         const params = new URLSearchParams(paramsObject);
+        // проверка условия
         if (openMeteoApiKey) {
             params.set('apikey', openMeteoApiKey);
         }
+        // возврат результата
         return `/api/open-meteo/forecast?${params.toString()}`;
     }
 
+    // объявление функции
     function makeCityWeatherCacheKey(lat, lon) {
+        // возврат результата
         return `cesium_city_weather_${Number(lat).toFixed(3)}_${Number(lon).toFixed(3)}`;
     }
 
+    // объявление функции
     function readCityWeatherCache(lat, lon, allowStale = false) {
         const raw = localStorage.getItem(makeCityWeatherCacheKey(lat, lon));
+        // проверка условия
         if (!raw) return null;
 
+        // начало блока перехвата ошибок
         try {
             const parsed = JSON.parse(raw);
+            // проверка условия
             if (!parsed || !parsed.timestamp || !parsed.current) return null;
 
             const isFresh = Date.now() - parsed.timestamp < 1000 * 60 * 30;
+            // проверка условия
             if (isFresh || allowStale) {
+                // возврат результата
                 return parsed.current;
             }
         } catch (_e) {
+            // возврат результата
             return null;
         }
 
+        // возврат результата
         return null;
     }
 
+    // объявление функции
     function writeCityWeatherCache(lat, lon, current) {
+        // начало блока перехвата ошибок
         try {
             localStorage.setItem(makeCityWeatherCacheKey(lat, lon), JSON.stringify({
                 timestamp: Date.now(),
                 current
             }));
         } catch (_e) {
-            // ignore localStorage errors
+            // ignore localstorage errors
         }
     }
 
+    // объявление функции
     function normalizeDegrees(deg) {
         let value = deg;
         while (value < 0) value += 360;
         while (value >= 360) value -= 360;
+        // возврат результата
         return value;
     }
 
+    // объявление функции
     function buildFallbackWeatherFromWindCache(lat, lon) {
         const raw = localStorage.getItem('cesium_windflow_cache_v1');
+        // проверка условия
         if (!raw) return null;
 
+        // начало блока перехвата ошибок
         try {
             const parsed = JSON.parse(raw);
             const items = Array.isArray(parsed?.data) ? parsed.data : [];
+            // проверка условия
             if (!items.length) return null;
 
             let nearest = null;
@@ -86,15 +103,18 @@ async function initWeatherVisualization(viewer) {
                 const dLat = Number(item.lat) - Number(lat);
                 const dLon = Number(item.lon) - Number(lon);
                 const distance = dLat * dLat + dLon * dLon;
+                // проверка условия
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     nearest = item;
                 }
             });
 
+            // проверка условия
             if (!nearest) return null;
 
             const directionFrom = normalizeDegrees((Math.atan2(-nearest.u, -nearest.v) * 180) / Math.PI);
+            // возврат результата
             return {
                 temperature_2m: Number(nearest.temp) || 0,
                 wind_speed_10m: Math.round((Number(nearest.speedMs) || 0) * 3.6),
@@ -103,17 +123,22 @@ async function initWeatherVisualization(viewer) {
                 _fallback: true
             };
         } catch (_e) {
+            // возврат результата
             return null;
         }
     }
 
+    // объявление функции
     function buildFallbackWeatherFromHeatmapCache(lat, lon) {
         const raw = localStorage.getItem('cesium_heatmap_cache_v4');
+        // проверка условия
         if (!raw) return null;
 
+        // начало блока перехвата ошибок
         try {
             const parsed = JSON.parse(raw);
             const items = Array.isArray(parsed?.data) ? parsed.data : [];
+            // проверка условия
             if (!items.length) return null;
 
             let nearest = null;
@@ -122,19 +147,23 @@ async function initWeatherVisualization(viewer) {
             items.forEach((item) => {
                 const itemLat = Number(item.latitude);
                 const itemLon = Number(item.longitude);
+                // проверка условия
                 if (!Number.isFinite(itemLat) || !Number.isFinite(itemLon)) return;
 
                 const dLat = itemLat - Number(lat);
                 const dLon = itemLon - Number(lon);
                 const distance = dLat * dLat + dLon * dLon;
+                // проверка условия
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     nearest = item;
                 }
             });
 
+            // проверка условия
             if (!nearest || !nearest.current) return null;
 
+            // возврат результата
             return {
                 temperature_2m: Number(nearest.current.temperature_2m) || 0,
                 wind_speed_10m: 0,
@@ -143,41 +172,54 @@ async function initWeatherVisualization(viewer) {
                 _fallback: true
             };
         } catch (_e) {
+            // возврат результата
             return null;
         }
     }
 
+    // объявление функции
     function readHeatmapCache(expectedCount, allowStale = false) {
         const CACHE_KEY = 'cesium_heatmap_cache_v4';
         localStorage.removeItem('cesium_heatmap_cache_v3');
         const CACHE_TIME_MS = 1000 * 60 * 60;
         const cachedStr = localStorage.getItem(CACHE_KEY);
+        // проверка условия
         if (!cachedStr) {
+            // возврат результата
             return [];
         }
 
+        // начало блока перехвата ошибок
         try {
             const parsed = JSON.parse(cachedStr);
+            // проверка условия
             if (!parsed || !Array.isArray(parsed.data) || !parsed.timestamp) {
+                // возврат результата
                 return [];
             }
 
             const minimumCoverage = Math.floor(expectedCount * 0.85);
+            // проверка условия
             if (parsed.data.length < minimumCoverage) {
+                // возврат результата
                 return [];
             }
 
             const isFresh = Date.now() - parsed.timestamp < CACHE_TIME_MS;
+            // проверка условия
             if (isFresh || allowStale) {
+                // возврат результата
                 return parsed.data;
             }
         } catch (e) {
             console.error("Ошибка чтения кэша", e);
         }
 
+        // возврат результата
         return [];
     }
 
+    // объявление функции
     async function fetchOpenMeteoPointBatch(points, currentValue) {
         const lats = points.map(loc => loc.lat).join(',');
         const lons = points.map(loc => loc.lon).join(',');
@@ -188,19 +230,25 @@ async function initWeatherVisualization(viewer) {
         });
 
         const response = await fetch(url);
+        // проверка условия
         if (!response.ok) {
             throw new Error(`Open-Meteo HTTP ${response.status}`);
         }
 
         const data = await response.json();
         const list = Array.isArray(data) ? data : [data];
+        // возврат результата
         return list.filter(d => d && d.current);
     }
 
+    // объявление функции
     async function fetchOpenMeteoGrid(points, currentValue) {
+        // начало блока перехвата ошибок
         try {
+            // возврат результата
             return await fetchOpenMeteoPointBatch(points, currentValue);
         } catch (error) {
+            // проверка условия
             if (points.length <= 32) {
                 throw error;
             }
@@ -209,11 +257,12 @@ async function initWeatherVisualization(viewer) {
             const left = await fetchOpenMeteoGrid(points.slice(0, mid), currentValue);
             await new Promise(resolve => setTimeout(resolve, 400));
             const right = await fetchOpenMeteoGrid(points.slice(mid), currentValue);
+            // возврат результата
             return left.concat(right);
         }
     }
 
-    // Стили для темного скроллбара
+    // стили для темного скроллбара
     const scrollStyle = document.createElement('style');
     scrollStyle.innerHTML = `
         #weatherSearchDropdown::-webkit-scrollbar { width: 6px; }
@@ -223,21 +272,21 @@ async function initWeatherVisualization(viewer) {
     `;
     document.head.appendChild(scrollStyle);
 
-    // ==========================================
-    // 2. СОЗДАНИЕ ИНТЕРФЕЙСА ДЛЯ КНОПОК
-    // ==========================================
+    //
+    // 2 создание интерфейса для кнопок
+    //
     const uiContainer = document.createElement('div');
     uiContainer.id = 'weatherUiContainer'; 
     uiContainer.style.position = 'absolute';
     uiContainer.style.top = '15px';
-    // Отступ 'left' теперь управляется через CSS переменные из CityDetailsPanel.js
+    // отступ 'left' теперь управляется через css переменные из citydetailspaneljs
     uiContainer.style.zIndex = '1000';
     uiContainer.style.display = 'flex';
     uiContainer.style.gap = '10px';
     uiContainer.style.fontFamily = 'sans-serif';
     uiContainer.style.alignItems = 'center';
 
-    // -- Кнопка вкл/выкл Тепловой карты --
+    // кнопка вкл/выкл тепловой карты
     const btnHeatmap = document.createElement('button');
     btnHeatmap.className = 'cesium-button cesium-toolbar-button'; 
     btnHeatmap.style.width = '30px';  
@@ -246,7 +295,7 @@ async function initWeatherVisualization(viewer) {
     btnHeatmap.style.display = 'flex';
     btnHeatmap.style.justifyContent = 'center';
     btnHeatmap.style.alignItems = 'center';
-    // Сразу активна
+    // сразу активна
     btnHeatmap.style.opacity = '1.0';
     btnHeatmap.style.pointerEvents = 'auto';
     btnHeatmap.title = 'Тепловая карта (Вкл/Выкл)';
@@ -258,7 +307,7 @@ async function initWeatherVisualization(viewer) {
     btnHeatmap.appendChild(iconHeatmap);
     uiContainer.appendChild(btnHeatmap);
 
-    // -- Кнопка вкл/выкл визуализации ветра --
+    // кнопка вкл/выкл визуализации ветра
     const btnWind = document.createElement('button');
     btnWind.className = 'cesium-button cesium-toolbar-button';
     btnWind.style.width = '30px';
@@ -279,9 +328,9 @@ async function initWeatherVisualization(viewer) {
     uiContainer.appendChild(btnWind);
     viewer.container.appendChild(uiContainer);
 
-    // ==========================================
-    // 3. КОМБОБОКС ПОИСКА С СЕРВЕРОМ БД
-    // ==========================================
+    //
+    // 3 комбобокс поиска с сервером бд
+    //
     const searchWrapper = document.createElement('div');
     searchWrapper.style.position = 'relative';
     searchWrapper.style.width = '100%';
@@ -316,8 +365,9 @@ async function initWeatherVisualization(viewer) {
     dropdown.style.zIndex = '2000';
     searchWrapper.appendChild(dropdown);
 
-    // Подключение поиска к боковой панели (CityDetailsPanel)
+    // подключение поиска к боковой панели (citydetailspanel)
     const searchSlot = document.getElementById('cityDetailsSearchSlot');
+    // проверка условия
     if (searchSlot) {
         searchSlot.appendChild(searchWrapper);
     } else {
@@ -325,6 +375,7 @@ async function initWeatherVisualization(viewer) {
         uiContainer.appendChild(searchWrapper);
     }
 
+    // проверка условия
     if (typeof initWindFlowVisualization !== 'function') {
         btnWind.title = 'Модуль ветра не найден';
         btnWind.style.opacity = '0.5';
@@ -332,13 +383,15 @@ async function initWeatherVisualization(viewer) {
     }
 
     btnWind.addEventListener('click', async () => {
+        // проверка условия
         if (typeof initWindFlowVisualization !== 'function' || windInitInProgress) return;
 
+        // проверка условия
         if (!windFlowController) {
             windInitInProgress = true;
             btnWind.style.opacity = '0.7';
             btnWind.style.pointerEvents = 'none';
-            // Добавлен индикатор загрузки
+            // добавлен индикатор загрузки
             const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Инициализация данных о ветре...') : null;
 
             windFlowController = initWindFlowVisualization(viewer, {
@@ -350,12 +403,15 @@ async function initWeatherVisualization(viewer) {
             btnWind.style.opacity = '1.0';
             btnWind.style.pointerEvents = 'auto';
             
+            // проверка условия
             if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
 
+            // проверка условия
             if (!isReady) {
                 windFlowController = null;
                 btnWind.title = 'Ветер: ошибка, нажмите для повтора';
                 alert('Не удалось загрузить данные ветра (возможен лимит API). Попробуйте снова через минуту.');
+                // возврат результата
                 return;
             }
 
@@ -366,9 +422,9 @@ async function initWeatherVisualization(viewer) {
         btnWind.style.backgroundColor = isOn ? 'rgba(38, 84, 121, 1)' : '';
     });
 
-    // ==========================================
-    // ЛОГИКА ПОИСКА И ОТОБРАЖЕНИЯ ТОЧЕК
-    // ==========================================
+    //
+    // логика поиска и отображения точек
+    //
     function renderDropdown(cityList = [], isLoading = false, errorMessage = null) {
         dropdown.innerHTML = '';
         
@@ -383,18 +439,21 @@ async function initWeatherVisualization(viewer) {
         clearItem.onmouseover = () => clearItem.style.background = '#3a3a3a';
         clearItem.onmouseout = () => clearItem.style.background = 'transparent';
         clearItem.onclick = () => {
+            // проверка условия
             if (selectedCityEntity) viewer.entities.remove(selectedCityEntity);
             selectedCityEntity = null;
             searchInput.value = '';
             searchInput.placeholder = 'Поиск по всему миру...';
             dropdown.style.display = 'none';
             
+            // проверка условия
             if (window.CityDetailsPanel) {
                 window.CityDetailsPanel.clear();
             }
         };
         dropdown.appendChild(clearItem);
 
+        // проверка условия
         if (isLoading) {
             const loadingItem = document.createElement('div');
             loadingItem.innerText = 'Поиск...';
@@ -402,9 +461,11 @@ async function initWeatherVisualization(viewer) {
             loadingItem.style.fontSize = '13px';
             loadingItem.style.color = '#aaa';
             dropdown.appendChild(loadingItem);
+            // возврат результата
             return;
         }
 
+        // проверка условия
         if (errorMessage) {
             const errItem = document.createElement('div');
             errItem.innerText = 'Ошибка БД: ' + errorMessage;
@@ -412,9 +473,11 @@ async function initWeatherVisualization(viewer) {
             errItem.style.fontSize = '12px';
             errItem.style.color = '#ff6b6b';
             dropdown.appendChild(errItem);
+            // возврат результата
             return;
         }
 
+        // проверка условия
         if (cityList.length === 0 && searchInput.value.length >= 2) {
             const noRes = document.createElement('div');
             noRes.innerText = 'Ничего не найдено';
@@ -422,12 +485,13 @@ async function initWeatherVisualization(viewer) {
             noRes.style.fontSize = '13px';
             noRes.style.color = '#aaa';
             dropdown.appendChild(noRes);
+            // возврат результата
             return;
         }
 
         cityList.forEach(city => {
             const item = document.createElement('div');
-            // Если есть код страны, добавляем его для визуального удобства
+            // если есть код страны добавляем его для визуального удобства
             const countryStr = city.country_code ? ` (${city.country_code})` : '';
             item.innerText = city.fullName || `${city.name}${countryStr}`;
             item.style.padding = '8px 12px';
@@ -446,23 +510,27 @@ async function initWeatherVisualization(viewer) {
     searchInput.addEventListener('input', (e) => {
         const query = e.target.value.trim();
         
-        // Очищаем предыдущий таймер
+        // очищаем предыдущий таймер
         if (searchTimeout) clearTimeout(searchTimeout);
 
+        // проверка условия
         if (query.length < 2) {
             renderDropdown([]);
             dropdown.style.display = 'none';
+            // возврат результата
             return;
         }
 
-        // Показываем "Загрузка..."
+        // показываем "загрузка"
         renderDropdown([], true);
         dropdown.style.display = 'flex';
 
-        // Отправляем запрос через 400мс после того как пользователь перестал вводить (debounce)
+        // отправляем запрос через 400мс после того как пользователь перестал вводить (debounce)
         searchTimeout = setTimeout(async () => {
+            // начало блока перехвата ошибок
             try {
                 const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&accept-language=ru`);
+                // проверка условия
                 if (response.ok) {
                     const data = await response.json();
                     const formattedData = data.map(item => ({
@@ -484,56 +552,66 @@ async function initWeatherVisualization(viewer) {
     });
 
     searchInput.addEventListener('focus', () => {
+        // проверка условия
         if (searchInput.value.length >= 2 || dropdown.children.length > 1) {
             dropdown.style.display = 'flex';
         }
     });
 
     document.addEventListener('click', (e) => {
+        // проверка условия
         if (!searchWrapper.contains(e.target)) {
             dropdown.style.display = 'none';
         }
     });
 
-    // Функция загрузки детальной погоды
+    // функция загрузки детальной погоды
     async function loadCityWeather(city) {
         searchInput.value = '';
         searchInput.placeholder = city.name;
         dropdown.style.display = 'none';
         
+        // проверка условия
         if (selectedCityEntity) viewer.entities.remove(selectedCityEntity);
         
-        // Если в БД нет координат, получаем их на лету через бесплатный геокодер Open-Meteo
+        // если в бд нет координат получаем их на лету через бесплатный геокодер openmeteo
         if (city.lat === null || city.lon === null || city.lat === undefined || city.lon === undefined) {
             console.log(`Координаты для ${city.name} отсутствуют в БД. Запрашиваем через Geocoding API...`);
+            // начало блока перехвата ошибок
             try {
-                // Ищем координаты города по его имени через Open-Meteo Geocoding API
+                // ищем координаты города по его имени через openmeteo geocoding api
                 const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city.name)}&count=1&language=ru&format=json`;
                 const geoRes = await fetch(geoUrl);
                 
+                // проверка условия
                 if (!geoRes.ok) throw new Error("Ошибка сервиса геокодирования");
                 
                 const geoData = await geoRes.json();
                 
+                // проверка условия
                 if (geoData.results && geoData.results.length > 0) {
-                    // Подставляем найденные координаты
+                    // подставляем найденные координаты
                     city.lat = geoData.results[0].latitude;
                     city.lon = geoData.results[0].longitude;
                 } else {
                     alert(`Для локации "${city.name}" отсутствуют координаты в БД, и онлайн-геосервис не смог их найти.`);
+                    // возврат результата
                     return;
                 }
             } catch (geoErr) {
                 console.error("Ошибка геокодирования:", geoErr);
                 alert(`Ошибка при автоматическом поиске координат для "${city.name}": ${geoErr.message}`);
+                // возврат результата
                 return;
             }
         }
 
+        // начало блока перехвата ошибок
         try {
             const freshCache = readCityWeatherCache(city.lat, city.lon, false);
             let current = freshCache;
 
+            // проверка условия
             if (!current) {
                 const url = buildOpenMeteoUrl({
                     latitude: String(city.lat),
@@ -542,6 +620,7 @@ async function initWeatherVisualization(viewer) {
                 });
                 const res = await fetch(url);
 
+                // проверка условия
                 if (!res.ok) {
                     throw new Error(res.status === 429
                         ? "Превышен лимит запросов к погодному API. Подождите пару минут."
@@ -549,7 +628,9 @@ async function initWeatherVisualization(viewer) {
                 }
 
                 const data = await res.json();
+                // проверка условия
                 if (data.error) throw new Error(data.reason || "Ошибка от API погоды");
+                // проверка условия
                 if (!data.current) throw new Error("Нет данных о текущей погоде");
 
                 current = data.current;
@@ -594,7 +675,7 @@ async function initWeatherVisualization(viewer) {
                 duration: 1.5
             });
 
-            // ОБНОВЛЯЕМ ПАНЕЛЬ ДЕТАЛЕЙ
+            // обновляем панель деталей
             if (window.CityDetailsPanel) {
                 window.CityDetailsPanel.show(city, { weatherCurrent: current });
             }
@@ -606,6 +687,7 @@ async function initWeatherVisualization(viewer) {
                 buildFallbackWeatherFromWindCache(city.lat, city.lon) ||
                 buildFallbackWeatherFromHeatmapCache(city.lat, city.lon);
 
+            // проверка условия
             if (fallbackWeather) {
                 console.warn("Погода города загружена из fallback-кэша:", error);
 
@@ -646,9 +728,11 @@ async function initWeatherVisualization(viewer) {
                     duration: 1.5
                 });
 
+                // проверка условия
                 if (window.CityDetailsPanel) {
                     window.CityDetailsPanel.show(city, { weatherCurrent: fallbackWeather });
                 }
+                // возврат результата
                 return;
             }
 
@@ -657,21 +741,26 @@ async function initWeatherVisualization(viewer) {
         }
     }
 
-    // ==========================================
-    // 4. ГЛОБАЛЬНАЯ ТЕПЛОВАЯ КАРТА (С кэшированием)
-    // ==========================================
-    // Загрузка тепловой карты перенесена в обработчик клика по кнопке
+    //
+    // 4 глобальная тепловая карта (с кэшированием)
+    //
+    // загрузка тепловой карты перенесена в обработчик клика по кнопке
     btnHeatmap.addEventListener('click', async () => {
+        // проверка условия
         if (isHeatmapLoading) return;
 
+        // проверка условия
         if (!isHeatmapLoaded) {
             isHeatmapLoading = true;
             btnHeatmap.style.opacity = '0.5';
             const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Генерация погодной тепловой карты...') : null;
 
+            // начало блока перехвата ошибок
             try {
                 const gridLocations = [];
+                // начало цикла
                 for (let lat = -85; lat <= 85; lat += 10) {
+                    // начало цикла
                     for (let lon = -180; lon < 180; lon += 10) {
                         gridLocations.push({ lat, lon });
                     }
@@ -680,11 +769,14 @@ async function initWeatherVisualization(viewer) {
                 let results = [];
                 const CACHE_KEY = 'cesium_heatmap_cache_v4';
                 results = readHeatmapCache(gridLocations.length, false);
+                // проверка условия
                 if (results.length > 0) {
                     console.log('Тепловая карта загружена из кэша (API сэкономлено)');
                 }
 
+                // проверка условия
                 if (results.length === 0) {
+                    // начало блока перехвата ошибок
                     try {
                         results = await fetchOpenMeteoGrid(gridLocations, 'temperature_2m');
                     } catch (e) {
@@ -693,6 +785,7 @@ async function initWeatherVisualization(viewer) {
                     }
 
                     const minimumCoverage = Math.floor(gridLocations.length * 0.85);
+                    // проверка условия
                     if (results.length >= minimumCoverage) {
                         localStorage.setItem(CACHE_KEY, JSON.stringify({
                             timestamp: Date.now(),
@@ -701,6 +794,7 @@ async function initWeatherVisualization(viewer) {
                     } else if (results.length > 0) {
                         console.warn(`Тепловая карта загружена не полностью: ${results.length} из ${gridLocations.length}. Используем stale-кэш, если он есть.`);
                         const staleCache = readHeatmapCache(gridLocations.length, true);
+                        // проверка условия
                         if (staleCache.length > 0) {
                             results = staleCache;
                         } else {
@@ -709,6 +803,7 @@ async function initWeatherVisualization(viewer) {
                     }
                 }
 
+                // проверка условия
                 if (results.length === 0) {
                     throw new Error('Нет данных для построения тепловой карты. API вернул пустой ответ или сработал лимит запросов.');
                 }
@@ -722,9 +817,11 @@ async function initWeatherVisualization(viewer) {
                 ctx.globalCompositeOperation = 'source-over'; 
 
                 results.forEach((weatherData) => {
+                    // проверка условия
                     if (!weatherData || !weatherData.current) return;
                     const lat = Number(weatherData.latitude);
                     const lon = Number(weatherData.longitude);
+                    // проверка условия
                     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
                     
                     const temp = weatherData.current.temperature_2m;
@@ -753,10 +850,12 @@ async function initWeatherVisualization(viewer) {
             } finally {
                 isHeatmapLoading = false;
                 btnHeatmap.style.opacity = '1.0';
+                // проверка условия
                 if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
             }
         }
 
+        // проверка условия
         if (heatmapLayer) {
             heatmapLayer.show = !heatmapLayer.show;
             updateShadersForHeatmap(viewer, heatmapLayer.show);
@@ -766,25 +865,30 @@ async function initWeatherVisualization(viewer) {
     });
 }
 
-// ==========================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ==========================================
+//
+// вспомогательные функции
+//
 
+// объявление функции
 function updateShadersForHeatmap(viewer, isHeatmapOn) {
     const renderOverShaders = true; 
 
+    // проверка условия
     if (isHeatmapOn && renderOverShaders) {
         viewer.scene.fog.enabled = false;
         viewer.scene.globe.showGroundAtmosphere = false;
         
+        // начало цикла
         for (let i = 0; i < viewer.scene.postProcessStages.length; i++) {
             const stage = viewer.scene.postProcessStages.get(i);
+            // проверка условия
             if (stage === viewer.scene.postProcessStages.bloom || 
                 stage === viewer.scene.postProcessStages.fxaa ||
                 stage === viewer.scene.postProcessStages.ambientOcclusion ||
                 (stage.fragmentShader && stage.fragmentShader.includes('maxDelta = glowThickness * rEarth'))) {
                 continue;
             }
+            // проверка условия
             if (stage.enabled) {
                 stage._wasEnabledBeforeHeatmap = true;
                 stage.enabled = false;
@@ -794,8 +898,10 @@ function updateShadersForHeatmap(viewer, isHeatmapOn) {
         viewer.scene.fog.enabled = true;
         viewer.scene.globe.showGroundAtmosphere = true;
         
+        // начало цикла
         for (let i = 0; i < viewer.scene.postProcessStages.length; i++) {
             const stage = viewer.scene.postProcessStages.get(i);
+            // проверка условия
             if (stage._wasEnabledBeforeHeatmap) {
                 stage.enabled = true;
                 delete stage._wasEnabledBeforeHeatmap;
@@ -804,6 +910,7 @@ function updateShadersForHeatmap(viewer, isHeatmapOn) {
     }
 }
 
+// объявление функции
 function getWeatherDescription(code) {
     const codes = {
         0: 'Ясно',
@@ -835,9 +942,11 @@ function getWeatherDescription(code) {
         96: 'Гроза с градом',
         99: 'Сильная гроза с градом'
     };
+    // возврат результата
     return codes[code] || 'Неизвестно';
 }
 
+// объявление функции
 function getWindDirection(deg) {
     const dirs = [
         { name: 'Северный', icon: '↓' }, { name: 'С-В', icon: '↙' },
@@ -846,13 +955,17 @@ function getWindDirection(deg) {
         { name: 'Западный', icon: '→' }, { name: 'С-З', icon: '↘' }
     ];
     const index = Math.round((deg % 360) / 45) % 8;
+    // возврат результата
     return `${dirs[index].name} ${dirs[index].icon}`;
 }
 
+// объявление функции
 function getWindDirectionTo(deg) {
+    // возврат результата
     return getWindDirection((deg + 180) % 360);
 }
 
+// объявление функции
 function createDoubleOutlinePin(colorHex) {
     const canvas = document.createElement('canvas');
     canvas.width = 40; canvas.height = 40;
@@ -863,9 +976,11 @@ function createDoubleOutlinePin(colorHex) {
     ctx.beginPath(); ctx.arc(cx, cy, 10.5, 0, 2 * Math.PI); ctx.fillStyle = '#000000'; ctx.fill();
     ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 2 * Math.PI); ctx.fillStyle = colorHex; ctx.fill();
     
+    // возврат результата
     return canvas;
 }
 
+// объявление функции
 function drawHeatBlob(ctx, x, y, radius, temp) {
     const grd = ctx.createRadialGradient(x, y, 0, x, y, radius);
     grd.addColorStop(0.0, getTempColorRGBA(temp, 1.00)); 
@@ -877,9 +992,11 @@ function drawHeatBlob(ctx, x, y, radius, temp) {
     ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
 }
 
+// объявление функции
 function getTempColorRGBA(temp, alpha) {
     const t = Math.max(-40, Math.min(45, temp)); 
     let r, g, b;
+    // проверка условия
     if (t < -20) {
         const f = (t + 40) / 20; r = Math.floor(138 * (1 - f)); g = 0; b = 255;
     } else if (t < 0) {
@@ -891,11 +1008,14 @@ function getTempColorRGBA(temp, alpha) {
     } else {
         const f = Math.min(1, (t - 30) / 15); r = Math.floor(255 - 100 * f); g = 0; b = 0;
     }
+    // возврат результата
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+// объявление функции
 function getTempColorHex(temp) {
     const rgba = getTempColorRGBA(temp, 1.0);
     const rgb = rgba.match(/\d+/g);
+    // возврат результата
     return "#" + ((1 << 24) + (+rgb[0] << 16) + (+rgb[1] << 8) + +rgb[2]).toString(16).slice(1);
 }

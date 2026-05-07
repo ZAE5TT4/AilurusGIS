@@ -1,7 +1,9 @@
 (function () {
+    // объявление функции
     function initPrecipitationVisualization(viewer) {
-        // Прикрепляем ко 2-му ряду (Earthquakes)
+        // прикрепляем ко 2му ряду (earthquakes)
         let container = document.getElementById('eqUiContainer');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'eqUiContainer';
@@ -29,7 +31,7 @@
         btn.appendChild(icon);
         container.appendChild(btn);
 
-        // Панель - Легенда Осадков (Сдвинута на +100px правее)
+        // панель легенда осадков (сдвинута на +100px правее)
         const legendPanel = document.createElement('div');
         legendPanel.style.position = 'absolute';
         legendPanel.style.top = '15px';
@@ -69,23 +71,28 @@
         let rainLayer = null;
 
         btn.addEventListener('click', async () => {
+            // проверка условия
             if (isBusy) return;
             isBusy = true;
             btn.style.opacity = '0.5';
 
+            // начало блока перехвата ошибок
             try {
                 isActive = !isActive;
                 
+                // проверка условия
                 if (isActive) {
                     const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка радара осадков...') : null;
+                    // начало блока перехвата ошибок
                     try {
                         const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+                        // проверка условия
                         if (!response.ok) throw new Error("Сбой RainViewer API");
                         const data = await response.json();
                         
                         const host = data.host;
                         const pastData = data.radar.past;
-                        // Берём самый последний кадр для максимальной актуальности
+                        // берём самый последний кадр для максимальной актуальности
                         const targetFrame = pastData[pastData.length - 1];
                         
                         const provider = new Cesium.UrlTemplateImageryProvider({
@@ -100,10 +107,12 @@
                         
                         legendPanel.style.display = 'block';
                     } finally {
+                        // проверка условия
                         if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
                     }
                     btn.style.backgroundColor = 'rgba(38, 84, 121, 1)';
                 } else {
+                    // проверка условия
                     if (rainLayer) {
                         viewer.imageryLayers.remove(rainLayer);
                         rainLayer = null;
@@ -117,6 +126,7 @@
                 isActive = false;
                 btn.style.backgroundColor = '';
                 legendPanel.style.display = 'none';
+                // проверка условия
                 if (rainLayer) {
                     viewer.imageryLayers.remove(rainLayer);
                     rainLayer = null;

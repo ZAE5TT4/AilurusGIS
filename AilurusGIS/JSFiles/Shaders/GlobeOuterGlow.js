@@ -1,10 +1,5 @@
-/**
- * Внешнее синее свечение (halo) вокруг Земли
- * v4: 
- * • обводка теперь почти одинаково толстая близко и далеко
- * • максимально прижата к терминатора со ВСЕХ сторон (сверху и снизу одинаково)
- * @param {Cesium.Viewer} viewer 
- */
+/* * * внешнее синее свечение (halo) вокруг земли * v4: * • обводка теперь почти одинаково толстая близко и далеко * • максимально прижата к терминатора со всех сторон (сверху и снизу одинаково) * @param {cesiumviewer} viewer */
+// объявление функции
 function applyGlobeOuterGlow(viewer) {
     
     console.log('🌟 GlobeOuterGlow v4 (толстая близко + прижата со всех сторон) загружен!');
@@ -24,8 +19,10 @@ function applyGlobeOuterGlow(viewer) {
             vec4 color = texture(colorTexture, v_textureCoordinates);
             
             float depth = czm_readDepth(depthTexture, v_textureCoordinates);
+            // проверка условия
             if (depth < 0.00001) {
                 out_FragColor = color;
+                // возврат результата
                 return;
             }
 
@@ -43,13 +40,16 @@ function applyGlobeOuterGlow(viewer) {
             float rEarth = 6378137.0;
             float glow = 0.0;
             
+            // проверка условия
             if (d_sq > 0.0) {
                 float d = sqrt(d_sq);
                 
+                // проверка условия
                 if (d > rEarth) {
                     float delta = d - rEarth;
                     float maxDelta = glowThickness * rEarth;
                     
+                    // проверка условия
                     if (delta < maxDelta) {
                         float intens = 1.0 - smoothstep(0.0, maxDelta, delta);
                         intens = pow(intens, glowFalloff);
@@ -61,7 +61,7 @@ function applyGlobeOuterGlow(viewer) {
                         vec3 toLight = normalize(vec3(-0.1, 0.1, 0.2));
                         float diffuse = max(dot(normal, toLight), 0.0);
                         
-                        // === МАКСИМАЛЬНО ПРИЖАТО К ТЕРМИНАТОРУ СО ВСЕХ СТОРОН ===
+                        // максимально прижато к терминатору со всех сторон
                         float litFactor = smoothstep(0.0, 0.135, diffuse);   // очень узкий переход
                         litFactor = pow(litFactor, 3.1);                     // супер-резкий старт
                         
@@ -70,6 +70,7 @@ function applyGlobeOuterGlow(viewer) {
                 }
             }
             
+            // проверка условия
             if (glow > 0.0) {
                 float finalAlpha = clamp(glow * glowIntensity, 0.0, 1.0);
                 color.rgb = mix(color.rgb, glowColor, finalAlpha);
@@ -79,9 +80,9 @@ function applyGlobeOuterGlow(viewer) {
         }
     `;
 
-    // ==============================================
-    // === ГЛОБАЛЬНЫЕ НАСТРОЙКИ                   ===
-    // ==============================================
+    //
+    // глобальные настройки
+    //
     
     let sizeMultiplier = 0.4;        // ← общий масштаб (1.4 = в 1.4 раза толще везде)
 
@@ -97,7 +98,7 @@ function applyGlobeOuterGlow(viewer) {
     const glowColorNear = new Cesium.Cartesian3(0.34, 0.58, 1.00);
     const glowColorFar  = new Cesium.Cartesian3(0.46, 0.78, 1.00);
 
-    // ==============================================
+    //
 
     let currentThickness = farThickness;
     let currentIntensity = farIntensity;

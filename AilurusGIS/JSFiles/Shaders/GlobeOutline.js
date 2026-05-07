@@ -1,23 +1,18 @@
-/**
- * Эффект математического ВНУТРЕННЕГО свечения глобуса (Два слоя)
- * 1 Слой: Основной синеватый градиент со сплошным краем.
- * 2 Слой: Тонкое, очень "мыльное" (размытое) белое свечение поверх.
- * Динамика зума: начинает увеличиваться с гораздо большего расстояния.
- * @param {Cesium.Viewer} viewer 
- */
+/* * * эффект математического внутреннего свечения глобуса (два слоя) * 1 слой: основной синеватый градиент со сплошным краем * 2 слой: тонкое очень "мыльное" (размытое) белое свечение поверх * динамика зума: начинает увеличиваться с гораздо большего расстояния * @param {cesiumviewer} viewer */
+// объявление функции
 function applyGlobeOutline(viewer) {
     const outlineShader = `
         uniform sampler2D colorTexture;
         uniform sampler2D depthTexture;
         
-        // Параметры основного синего свечения
+        // параметры основного синего свечения
         uniform float glowThickness;    
         uniform float glowSolidRatio;   
         uniform float glowIntensity;    
         uniform float glowFalloff;      
         uniform vec3 glowColor;         
         
-        // Параметры дополнительной тонкой линии (бывшее белое свечение)
+        // параметры дополнительной тонкой линии (бывшее белое свечение)
         uniform float lineThickness;
         uniform float lineIntensity;
         uniform vec3 lineColor;         // НОВЫЙ ПАРАМЕТР: Цвет тонкой линии
@@ -28,8 +23,10 @@ function applyGlobeOutline(viewer) {
             vec4 color = texture(colorTexture, v_textureCoordinates);
             
             float depth = czm_readDepth(depthTexture, v_textureCoordinates);
+            // проверка условия
             if (depth < 0.00001) {
                 out_FragColor = color;
+                // возврат результата
                 return;
             }
 
@@ -44,23 +41,27 @@ function applyGlobeOutline(viewer) {
             float c = dot(oc, oc);
             float d_sq = c - b * b;
             
+            // проверка условия
             if (d_sq < 0.0) {
                 out_FragColor = color;
+                // возврат результата
                 return;
             }
             
             float d = sqrt(d_sq);
             float rEarth = 6378137.0;
             
-            // Если луч пересекает планету
+            // если луч пересекает планету
             if (b < 0.0 && d <= rEarth) {
                 
-                // --- 1. ВЫЧИСЛЯЕМ ОСНОВНОЕ СВЕЧЕНИЕ ---
+                // 1 вычисляем основное свечение
                 float rInner = rEarth * (1.0 - glowThickness); 
                 float rSolid = rEarth * (1.0 - glowThickness * glowSolidRatio);
                 float bIntens = 0.0;
                 
+                // проверка условия
                 if (d >= rInner) {
+                    // проверка условия
                     if (d >= rSolid) {
                         bIntens = 1.0;
                     } else {
@@ -69,24 +70,25 @@ function applyGlobeOutline(viewer) {
                     }
                 }
                 
-                // --- 2. ВЫЧИСЛЯЕМ ВТОРУЮ ЛИНИЮ (ПРОСТОЙ ГРАДИЕНТ) ---
+                // 2 вычисляем вторую линию (простой градиент)
                 float rLine = rEarth * (1.0 - lineThickness);
                 float lIntens = 0.0;
                 
+                // проверка условия
                 if (d >= rLine) {
                     lIntens = smoothstep(rLine, rEarth, d);
-                    // Высокая степень (8.0) прижимает градиент к краю, делая его острой линией
+                    // высокая степень (80) прижимает градиент к краю делая его острой линией
                     lIntens = pow(lIntens, 3.0); 
                 }
                 
-                // --- 3. НАКЛАДЫВАЕМ ЦВЕТА ---
-                // Сначала матовый синеватый слой
+                // 3 накладываем цвета
+                // сначала матовый синеватый слой
                 if (bIntens > 0.0) {
                     float finalAlphaBlue = clamp(bIntens * glowIntensity, 0.0, 1.0);
                     color.rgb = mix(color.rgb, glowColor, finalAlphaBlue);
                 }
                 
-                // Поверх добавляем вторую линию тоже через МАТОВОЕ наложение (mix), а НЕ свечение
+                // поверх добавляем вторую линию тоже через матовое наложение (mix) а не свечение
                 if (lIntens > 0.0) {
                     float finalAlphaLine = clamp(lIntens * lineIntensity, 0.0, 1.0);
                     color.rgb = mix(color.rgb, lineColor, finalAlphaLine);
@@ -97,13 +99,13 @@ function applyGlobeOutline(viewer) {
         }
     `;
 
-    // Текущие переменные
+    // текущие переменные
     let currentThickness = 0.025;
     let currentSolidRatio = 0.15;
     let currentIntensity = 0.60;
     let currentFalloff = 1.2;
     
-    // Переменные для тонкой линии
+    // переменные для тонкой линии
     let currentLineThickness = 0.015;
     let currentLineIntensity = 0.80;
 
@@ -117,82 +119,82 @@ function applyGlobeOutline(viewer) {
                 glowFalloff: function() { return currentFalloff; }, 
                 glowColor: new Cesium.Cartesian3(0.41, 0.57, 0.84),
                 
-                // === НАСТРОЙКИ ТОНКОЙ ЛИНИИ (ЗДЕСЬ МЕНЯТЬ ЦВЕТ!) ===
+                // настройки тонкой линии (здесь менять цвет!)
                 lineThickness: function() { return currentLineThickness; },
                 lineIntensity: function() { return currentLineIntensity; },
                 
-                // ЦВЕТ ТОНКОЙ ЛИНИИ: (Красный, Зеленый, Синий) от 0.0 до 1.0
-                // Например: (1.0, 1.0, 1.0) = чисто белый
-                // Например: (0.9, 0.9, 1.0) = белый с легким голубым отливом
+                // цвет тонкой линии: (красный зеленый синий) от 00 до 10
+                // например: (10 10 10) чисто белый
+                // например: (09 09 10) белый с легким голубым отливом
                 lineColor: new Cesium.Cartesian3(0.85, 0.85, 0.95)
-                // ===================================================
+                //
             }
         })
     );
     window.__globeShaderStages = window.__globeShaderStages || {};
     window.__globeShaderStages.outline = outlineStage;
 
-    // Логика плавного изменения
+    // логика плавного изменения
     viewer.scene.preUpdate.addEventListener(function() {
         const camera = viewer.camera;
         
         const cartographic = viewer.scene.globe.ellipsoid.cartesianToCartographic(camera.position);
         const height = cartographic ? cartographic.height : 0;
         
-        // --- 1. ВЫСОТНЫЕ ПОРОГИ (Изменены для более раннего старта) ---
+        // 1 высотные пороги (изменены для более раннего старта)
         const spaceHeight = 18000000.0;   // 18 000 км (Начинаем увеличивать гораздо раньше!)
         const highOrbitHeight = 7000000.0;// 7 000 км (Завершение резкого скачка)
         const approachHeight = 4000000.0; // 4 000 км (Начало затухания)
         const surfaceHeight = 1500000.0   // 1 500 км (Полностью пропадает)
         
-        // --- 2. КОСМОС (Вдали) ---
+        // 2 космос (вдали)
         const farThickness = 0.042; 
         const farSolidRatio = 0.20; 
         const farIntensity = 0.60;  
         const farFalloff = 1.2;     
         
-        // === МАЛЕНЬКАЯ ЛИНИЯ: В КОСМОСЕ (ОЧЕНЬ ДАЛЕКО) ===
-        // Меняйте эти цифры, если маленькая линия плохо видна издалека
+        // маленькая линия: в космосе (очень далеко)
+        // меняйте эти цифры если маленькая линия плохо видна издалека
         const farLineThick = 0.015; // <-- ТОЛЩИНА МАЛЕНЬКОЙ ЛИНИИ (0.015 = 1.5%)
         const farLineInt = 0.80;    // <-- ЯРКОСТЬ МАЛЕНЬКОЙ ЛИНИИ (0.80 = 80% видимости)
-        // =================================================
+        //
         
-        // --- 3. ВЕРХНЯЯ ОРБИТА (Быстрый рост размера) ---
+        // 3 верхняя орбита (быстрый рост размера)
         const highThickness = 0.10; 
         const highSolidRatio = 0.10;
         const highIntensity = 0.45;
         const highFalloff = 0.6;
         
-        // === МАЛЕНЬКАЯ ЛИНИЯ: НАЧАЛО ПРИБЛИЖЕНИЯ ===
+        // маленькая линия: начало приближения
         const highLineThick = 0.050; // <-- ТОЛЩИНА МАЛЕНЬКОЙ ЛИНИИ (Остается 1.5%)
         const highLineInt = 0.60;    // <-- ЯРКОСТЬ МАЛЕНЬКОЙ ЛИНИИ (Чуть тускнеет до 60%)
-        // ===========================================
+        //
         
-        // --- 4. НИЖНЯЯ ОРБИТА (Медленный рост) ---
+        // 4 нижняя орбита (медленный рост)
         const midThickness = 0.15;  
         const midSolidRatio = 0.05; 
         const midIntensity = 0.35;  
         const midFalloff = 0.4;     
         
-        // === МАЛЕНЬКАЯ ЛИНИЯ: СРЕДНЯЯ ОРБИТА ===
-        // Здесь она достигает своего максимума
+        // маленькая линия: средняя орбита
+        // здесь она достигает своего максимума
         const midLineThick = 0.02;  // <-- ТОЛЩИНА МАЛЕНЬКОЙ ЛИНИИ (Выросла до 2%)
         const midLineInt = 0.30;    // <-- ЯРКОСТЬ МАЛЕНЬКОЙ ЛИНИИ (Стала прозрачнее, 40%)
-        // =======================================
+        //
         
-        // --- 5. ПОВЕРХНОСТЬ (Затухание) ---
+        // 5 поверхность (затухание)
         const closeThickness = 0.15; 
         const closeSolidRatio = 0.05;
         const closeIntensity = 0.0; 
         const closeFalloff = 0.4;
         
-        // === МАЛЕНЬКАЯ ЛИНИЯ: У САМОЙ ЗЕМЛИ (НАД ГОРОДАМИ) ===
+        // маленькая линия: у самой земли (над городами)
         const closeLineThick = 0.02; // <-- ТОЛЩИНА МАЛЕНЬКОЙ ЛИНИИ
         const closeLineInt = 0.0;    // <-- ЯРКОСТЬ МАЛЕНЬКОЙ ЛИНИИ (0.0 = ПОЛНОСТЬЮ ИСЧЕЗЛА!)
-        // Если хотите, чтобы она не исчезала у земли, поменяйте 0.0 на 0.2, например.
-        // =====================================================
+        // если хотите чтобы она не исчезала у земли поменяйте 00 на 02 например
+        //
         
-        // Математика переходов
+        // математика переходов
         if (height >= spaceHeight) {
             currentThickness = farThickness;
             currentSolidRatio = farSolidRatio;

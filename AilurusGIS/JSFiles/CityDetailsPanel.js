@@ -1,14 +1,11 @@
-/**
- * Боковая панель (Sidebar) в стиле Cesium для деталей о городах и погоде.
- * Закреплена слева, с кнопкой сворачивания. Выталкивает остальные кнопки меню.
- */
+/* * * боковая панель (sidebar) в стиле cesium для деталей о городах и погоде * закреплена слева с кнопкой сворачивания выталкивает остальные кнопки меню */
 window.CityDetailsPanel = (function() {
     
-    // Внедряем глобальный стиль для плавного сдвига кнопок
+    // внедряем глобальный стиль для плавного сдвига кнопок
     const syncStyles = document.createElement('style');
     syncStyles.innerHTML = `
         :root {
-            --panel-offset: 335px; /* Ширина панели (320) + отступ (15) */
+            --panel-offset: 335px; /* ширина панели (320) + отступ (15) */
         }
         #weatherUiContainer, #environmentUiContainer, #leftBottomControls,
         #bathymetryUiContainer, #bordersUiContainer, #dnUiContainer,
@@ -23,7 +20,7 @@ window.CityDetailsPanel = (function() {
     `;
     document.head.appendChild(syncStyles);
 
-    // Главный контейнер боковой панели
+    // главный контейнер боковой панели
     const panel = document.createElement('div');
     panel.id = 'cityDetailsSidebar';
     panel.style.position = 'absolute';
@@ -44,7 +41,7 @@ window.CityDetailsPanel = (function() {
     panel.style.fontFamily = 'Arial, sans-serif';
     panel.style.color = '#fff'; // Белый текст по умолчанию
 
-    // Кнопка свернуть/развернуть панель
+    // кнопка свернуть/развернуть панель
     const toggleBtn = document.createElement('div');
     toggleBtn.id = 'cityDetailsSidebarToggle';
     toggleBtn.style.position = 'absolute';
@@ -66,7 +63,7 @@ window.CityDetailsPanel = (function() {
     toggleBtn.innerHTML = '◀';
     panel.appendChild(toggleBtn);
 
-    // Слот для комбобокса с поиском
+    // слот для комбобокса с поиском
     const searchSlot = document.createElement('div');
     searchSlot.id = 'cityDetailsSearchSlot';
     searchSlot.style.padding = '15px';
@@ -74,7 +71,7 @@ window.CityDetailsPanel = (function() {
     searchSlot.style.flexShrink = '0'; // Запрещаем сжатие слота поиска
     panel.appendChild(searchSlot);
 
-    // Контейнер контента
+    // контейнер контента
     const contentSlot = document.createElement('div');
     contentSlot.id = 'cityDetailsContentSlot';
     contentSlot.style.padding = '15px';
@@ -82,7 +79,7 @@ window.CityDetailsPanel = (function() {
     contentSlot.style.flex = '1'; // Растягиваем на всю свободную высоту
     contentSlot.style.minHeight = '0'; // Важно для скроллинга внутри flex-контейнера
     
-    // Стили скроллбара для панели
+    // стили скроллбара для панели
     const scrollStyle = document.createElement('style');
     scrollStyle.innerHTML = `
         #cityDetailsContentSlot::-webkit-scrollbar { width: 6px; }
@@ -97,13 +94,14 @@ window.CityDetailsPanel = (function() {
     panel.appendChild(contentSlot);
     document.body.appendChild(panel);
 
-    // Состояние открытия
+    // состояние открытия
     let isOpen = true;
 
-    // Внутреннее состояние данных
+    // внутреннее состояние данных
     let currentCityData = null;
     let currentCityInfo = null;
 
+    // объявление функции
     function updateSidebarState() {
         const offsetHide = 'calc(-1 * min(320px, calc(100vw - 30px)))';
         const offsetOpen = 'calc(min(320px, calc(100vw - 30px)) + 15px)';
@@ -118,7 +116,7 @@ window.CityDetailsPanel = (function() {
         updateSidebarState();
     });
 
-    // Устанавливаем стартовое состояние (Пустое до выбора города)
+    // устанавливаем стартовое состояние (пустое до выбора города)
     function showEmptyState() {
         contentSlot.innerHTML = `
             <div style="padding: 20px; text-align: center; color: #aaa; margin-top: 50px;">
@@ -129,34 +127,55 @@ window.CityDetailsPanel = (function() {
     }
     showEmptyState();
 
-    // Вспомогательные функции
+    // вспомогательные функции
     function getAqiColor(aqi) {
+        // проверка условия
         if (aqi === null || aqi === undefined) return { bg: '#555555', fg: '#ffffff', label: 'Нет данных', emoji: 'neutral.png' };
+        // проверка условия
         if (aqi <= 50) return { bg: '#009966', fg: '#ffffff', label: 'Хорошо', emoji: 'smile_open.png' };
+        // проверка условия
         if (aqi <= 100) return { bg: '#ffde33', fg: '#000000', label: 'Умеренно', emoji: 'smile_closed.png' };
+        // проверка условия
         if (aqi <= 150) return { bg: '#ff9933', fg: '#000000', label: 'Чувствит.', emoji: 'neutral.png' };
+        // проверка условия
         if (aqi <= 200) return { bg: '#cc0033', fg: '#ffffff', label: 'Вредно', emoji: 'sad.png' };
+        // проверка условия
         if (aqi <= 300) return { bg: '#660099', fg: '#ffffff', label: 'Очень вредно', emoji: 'angry.png' };
+        // возврат результата
         return { bg: '#7e0023', fg: '#ffffff', label: 'Опасно', emoji: 'dead_tongue.png' };
     }
 
+    // объявление функции
     function getWeatherIcon(code) {
+        // проверка условия
         if (code <= 1) return '☀️'; // Ясно
+        // проверка условия
         if (code <= 3) return '⛅'; // Облачно
+        // проверка условия
         if (code <= 48) return '🌫️'; // Туман
+        // проверка условия
         if (code <= 57) return '🌧️'; // Морось
+        // проверка условия
         if (code <= 67) return '🌧️'; // Дождь
+        // проверка условия
         if (code <= 77) return '❄️'; // Снег
+        // проверка условия
         if (code <= 82) return '🌦️'; // Ливень
+        // проверка условия
         if (code <= 86) return '🌨️'; // Снегопад
+        // проверка условия
         if (code >= 95) return '⛈️'; // Гроза
+        // возврат результата
         return '🌤️';
     }
 
+    // объявление функции
     function buildHourlyChart(hourlyData) {
+        // проверка условия
         if (!hourlyData || !hourlyData.time || !hourlyData.us_aqi) return '';
         const now = new Date();
         let startIndex = hourlyData.time.findIndex(t => new Date(t) >= now);
+        // проверка условия
         if (startIndex === -1) startIndex = 0;
         
         const start = Math.max(0, startIndex - 12);
@@ -166,6 +185,7 @@ window.CityDetailsPanel = (function() {
         const maxAqi = Math.max(...aqis.filter(a => a !== null), 50);
 
         let html = '<div style="display:flex; align-items:flex-end; height:50px; gap:2px; margin-top:5px;">';
+        // начало цикла
         for(let i=0; i<aqis.length; i++) {
             const val = aqis[i];
             const heightPct = val === null ? 0 : Math.max(5, (val / maxAqi) * 100);
@@ -175,32 +195,45 @@ window.CityDetailsPanel = (function() {
         }
         html += '</div>';
         html += '<div style="display:flex; justify-content:space-between; font-size:10px; color:#aaa; margin-top:4px;"><span>-12ч</span><span>сейчас</span><span>+12ч</span></div>';
+        // возврат результата
         return html;
     }
 
+    // объявление функции
     function makeDetailedCacheKey(lat, lon) {
+        // возврат результата
         return `cesium_city_details_${Number(lat).toFixed(3)}_${Number(lon).toFixed(3)}`;
     }
 
+    // объявление функции
     function readDetailedCache(lat, lon, allowStale = false) {
         const raw = localStorage.getItem(makeDetailedCacheKey(lat, lon));
+        // проверка условия
         if (!raw) return null;
 
+        // начало блока перехвата ошибок
         try {
             const parsed = JSON.parse(raw);
+            // проверка условия
             if (!parsed || !parsed.timestamp || !parsed.payload) return null;
             const isFresh = Date.now() - parsed.timestamp < 1000 * 60 * 30;
+            // проверка условия
             if (isFresh || allowStale) {
+                // возврат результата
                 return parsed.payload;
             }
         } catch (_e) {
+            // возврат результата
             return null;
         }
 
+        // возврат результата
         return null;
     }
 
+    // объявление функции
     function writeDetailedCache(lat, lon, payload) {
+        // начало блока перехвата ошибок
         try {
             localStorage.setItem(makeDetailedCacheKey(lat, lon), JSON.stringify({
                 timestamp: Date.now(),
@@ -209,8 +242,11 @@ window.CityDetailsPanel = (function() {
         } catch (_e) {}
     }
 
+    // объявление функции
     function buildFallbackDetailedData(lat, lon, prefetchedData) {
+        // проверка условия
         if (prefetchedData && prefetchedData.weatherCurrent) {
+            // возврат результата
             return {
                 aqi: { current: {}, hourly: null },
                 weather: { current: prefetchedData.weatherCurrent, daily: {} }
@@ -218,11 +254,14 @@ window.CityDetailsPanel = (function() {
         }
 
         const windRaw = localStorage.getItem('cesium_windflow_cache_v1');
+        // проверка условия
         if (!windRaw) return null;
 
+        // начало блока перехвата ошибок
         try {
             const parsed = JSON.parse(windRaw);
             const items = Array.isArray(parsed?.data) ? parsed.data : [];
+            // проверка условия
             if (!items.length) return null;
 
             let nearest = null;
@@ -231,15 +270,18 @@ window.CityDetailsPanel = (function() {
                 const dLat = Number(item.lat) - Number(lat);
                 const dLon = Number(item.lon) - Number(lon);
                 const distance = dLat * dLat + dLon * dLon;
+                // проверка условия
                 if (distance < bestDistance) {
                     bestDistance = distance;
                     nearest = item;
                 }
             });
 
+            // проверка условия
             if (!nearest) return null;
 
             const directionFrom = ((Math.atan2(-nearest.u, -nearest.v) * 180) / Math.PI + 360) % 360;
+            // возврат результата
             return {
                 aqi: { current: {}, hourly: null },
                 weather: {
@@ -255,18 +297,22 @@ window.CityDetailsPanel = (function() {
                 }
             };
         } catch (_e) {
+            // возврат результата
             return null;
         }
     }
 
-    // Основная функция загрузки детальных данных по городу
+    // основная функция загрузки детальных данных по городу
     async function fetchDetailedData(lat, lon, prefetchedData) {
         const freshCache = readDetailedCache(lat, lon, false);
+        // проверка условия
         if (freshCache) {
+            // проверка условия
             if (prefetchedData && prefetchedData.weatherCurrent) {
                 freshCache.weather = freshCache.weather || {};
                 freshCache.weather.current = Object.assign({}, freshCache.weather.current || {}, prefetchedData.weatherCurrent);
             }
+            // возврат результата
             return freshCache;
         }
 
@@ -274,38 +320,47 @@ window.CityDetailsPanel = (function() {
         const aqiUrl = `/api/open-meteo/air-quality?latitude=${lat}&longitude=${lon}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=us_aqi&timezone=auto${apiKeyParam}`;
         const weatherUrl = `/api/open-meteo/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,surface_pressure,wind_speed_10m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,wind_speed_10m_max,precipitation_probability_max&timezone=auto${apiKeyParam}`;
 
+        // начало блока перехвата ошибок
         try {
-            // Всегда запрашиваем оба API параллельно для получения полных данных (daily, humidity, pressure)
+            // всегда запрашиваем оба api параллельно для получения полных данных (daily humidity pressure)
             const [aqiRes, weatherRes] = await Promise.all([
                 fetch(aqiUrl),
                 fetch(weatherUrl)
             ]);
 
+            // проверка условия
             if (!aqiRes.ok) throw new Error(`AQI API error: ${aqiRes.status}`);
+            // проверка условия
             if (!weatherRes.ok) throw new Error(`Weather API error: ${weatherRes.status}`);
 
             const weatherPayload = await weatherRes.json();
 
-            // prefetchedData используем только для дополнения current (не заменяем daily)
+            // prefetcheddata используем только для дополнения current (не заменяем daily)
             if (prefetchedData && prefetchedData.weatherCurrent) {
                 weatherPayload.current = Object.assign({}, weatherPayload.current || {}, prefetchedData.weatherCurrent);
             }
 
             const payload = { aqi: await aqiRes.json(), weather: weatherPayload };
             writeDetailedCache(lat, lon, payload);
+            // возврат результата
             return payload;
         } catch (error) {
             const staleCache = readDetailedCache(lat, lon, true);
+            // проверка условия
             if (staleCache) {
+                // проверка условия
                 if (prefetchedData && prefetchedData.weatherCurrent) {
                     staleCache.weather = staleCache.weather || {};
                     staleCache.weather.current = Object.assign({}, staleCache.weather.current || {}, prefetchedData.weatherCurrent);
                 }
+                // возврат результата
                 return staleCache;
             }
 
             const fallback = buildFallbackDetailedData(lat, lon, prefetchedData);
+            // проверка условия
             if (fallback) {
+                // возврат результата
                 return fallback;
             }
 
@@ -313,7 +368,9 @@ window.CityDetailsPanel = (function() {
         }
     }
 
+    // объявление функции
     function renderDataForDay(dayIndex) {
+        // проверка условия
         if (!currentCityData || !currentCityInfo) return;
 
         const data = currentCityData;
@@ -326,6 +383,7 @@ window.CityDetailsPanel = (function() {
 
         let aqiValue, aqiInfo, timeStr, dateStr, tempStr, humidityStr, pressureStr, windStr, headerSubtitle;
 
+        // проверка условия
         if (dayIndex === 0) {
             aqiValue = aqiCurrent.us_aqi;
             aqiInfo = getAqiColor(aqiValue);
@@ -344,15 +402,19 @@ window.CityDetailsPanel = (function() {
             headerSubtitle = `Прогноз на ${dateStr}`;
             
             let dayAqiValues = [];
+            // проверка условия
             if (aqiHourly && aqiHourly.time && aqiHourly.us_aqi) {
                 const targetDayStr = dailyData.time[dayIndex]; 
+                // начало цикла
                 for (let i = 0; i < aqiHourly.time.length; i++) {
+                    // проверка условия
                     if (aqiHourly.time[i].startsWith(targetDayStr) && aqiHourly.us_aqi[i] !== null) {
                         dayAqiValues.push(aqiHourly.us_aqi[i]);
                     }
                 }
             }
             
+            // проверка условия
             if (dayAqiValues.length > 0) {
                 const avgAqi = Math.round(dayAqiValues.reduce((a,b)=>a+b,0) / dayAqiValues.length);
                 aqiValue = avgAqi;
@@ -392,6 +454,7 @@ window.CityDetailsPanel = (function() {
             </div>
         `;
 
+        // проверка условия
         if (dayIndex === 0) {
             html += `
                 <div style="margin-bottom: 15px;">
@@ -434,8 +497,10 @@ window.CityDetailsPanel = (function() {
             <div style="display:flex; justify-content:space-between; overflow-x:auto;">
         `;
 
+        // проверка условия
         if (dailyData.time) {
             const daysLimit = Math.min(5, dailyData.time.length);
+            // начало цикла
             for (let i = 0; i < daysLimit; i++) {
                 const d = new Date(dailyData.time[i]);
                 const dayName = d.toLocaleDateString('ru-RU', { weekday: 'short' });
@@ -468,7 +533,9 @@ window.CityDetailsPanel = (function() {
         contentSlot.innerHTML = html;
     }
 
+    // объявление функции
     async function show(city, prefetchedData) {
+        // проверка условия
         if (!isOpen) {
             isOpen = true;
             updateSidebarState();
@@ -480,14 +547,18 @@ window.CityDetailsPanel = (function() {
             </div>
         `;
 
+        // начало блока перехвата ошибок
         try {
-            // Сбрасываем кэш без daily данных, чтобы получить полный прогноз
+            // сбрасываем кэш без daily данных чтобы получить полный прогноз
             const cacheKey = makeDetailedCacheKey(city.lat, city.lon);
+            // начало блока перехвата ошибок
             try {
                 const raw = localStorage.getItem(cacheKey);
+                // проверка условия
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     const daily = parsed?.payload?.weather?.daily;
+                    // проверка условия
                     if (!daily || !daily.time || daily.time.length === 0 || !daily.precipitation_probability_max) {
                         localStorage.removeItem(cacheKey);
                     }
@@ -509,12 +580,14 @@ window.CityDetailsPanel = (function() {
         }
     }
 
+    // объявление функции
     function clearPanel() {
         currentCityData = null;
         currentCityInfo = null;
         showEmptyState();
     }
 
+    // возврат результата
     return {
         show: show,
         clear: clearPanel,

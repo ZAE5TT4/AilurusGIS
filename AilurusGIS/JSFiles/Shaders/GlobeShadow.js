@@ -1,9 +1,5 @@
-/**
- * Усовершенствованный эффект объемной тени без мерцания.
- * Использует чистую математику (Raycasting) вместо слоев глубины, 
- * что позволяет тени идеально ложиться ПОВЕРХ атмосферы и не затрагивать космос.
- * @param {Cesium.Viewer} viewer 
- */
+/* * * усовершенствованный эффект объемной тени без мерцания * использует чистую математику (raycasting) вместо слоев глубины * что позволяет тени идеально ложиться поверх атмосферы и не затрагивать космос * @param {cesiumviewer} viewer */
+// объявление функции
 function applyGlobeShadow(viewer) {
     viewer.scene.globe.enableLighting = false;
     viewer.scene.globe.depthTestAgainstTerrain = true;
@@ -19,13 +15,17 @@ function applyGlobeShadow(viewer) {
             vec4 color = texture(colorTexture, v_textureCoordinates);
             
             float depth = czm_readDepth(depthTexture, v_textureCoordinates);
+            // проверка условия
             if (depth < 0.00001) {
                 out_FragColor = color;
+                // возврат результата
                 return;
             }
 
+            // проверка условия
             if (shadowIntensity <= 0.0) {
                 out_FragColor = color;
+                // возврат результата
                 return;
             }
 
@@ -43,9 +43,11 @@ function applyGlobeShadow(viewer) {
             
             float finalShadow = 1.0;
             
+            // проверка условия
             if (discriminant > 0.0) {
                 float t = -b - sqrt(discriminant); 
                 
+                // проверка условия
                 if (t > 0.0) {
                     vec3 hitPos = rayDir * t;
                     vec3 normal = normalize(hitPos - earthCenterEC);
@@ -62,7 +64,7 @@ function applyGlobeShadow(viewer) {
         }
     `;
 
-    // 3. Добавляем нашу тень в систему рендеринга
+    // 3 добавляем нашу тень в систему рендеринга
     const globeShadowStage = viewer.scene.postProcessStages.add(
         new Cesium.PostProcessStage({
             fragmentShader: shadowShader,
@@ -74,27 +76,27 @@ function applyGlobeShadow(viewer) {
     window.__globeShaderStages = window.__globeShaderStages || {};
     window.__globeShaderStages.shadow = globeShadowStage;
 
-    // 4. Плавно меняем силу тени при зуме камеры
+    // 4 плавно меняем силу тени при зуме камеры
     viewer.scene.preUpdate.addEventListener(function() {
         const camera = viewer.camera;
         
-        // Получаем высоту
+        // получаем высоту
         const cartographic = viewer.scene.globe.ellipsoid.cartesianToCartographic(camera.position);
         const height = cartographic ? cartographic.height : 0;
         
-        // --- НАСТРОЙКИ ВЫСОТЫ ---
-        // 2 000 км: Тень полностью прозрачная (видно всю карту)
+        // настройки высоты
+        // 2 000 км: тень полностью прозрачная (видно всю карту)
         const minHeight = 2000000.0;  
-        // 12 000 км: Тень черная и плотная
+        // 12 000 км: тень черная и плотная
         const maxHeight = 12000000.0; 
         
         let t = (height - minHeight) / (maxHeight - minHeight);
         t = Math.max(0.0, Math.min(1.0, t));
         
-        // Плавная математическая кривая
+        // плавная математическая кривая
         let smoothT = t * t * (3.0 - 2.0 * t);
         
-        // Передаем интенсивность в шейдер
+        // передаем интенсивность в шейдер
         globeShadowStage.uniforms.shadowIntensity = smoothT;
     });
 }

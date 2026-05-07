@@ -1,42 +1,41 @@
 (function () {
-    /**
-     * Менеджер закладок (POIs).
-     * - Токен пользователя генерируется один раз и хранится в localStorage.
-     * Каждый браузер/устройство видит только СВОИ метки.
-     * - Десктоп: правый клик по метке — удаление.
-     * - Мобильные: тап по существующей метке — удаление (с подтверждением).
-     * - Экспорт / Импорт через диалог.
-     */
+    /* * * менеджер закладок (pois) * токен пользователя генерируется один раз и хранится в localstorage * каждый браузер/устройство видит только свои метки * десктоп: правый клик по метке удаление * мобильные: тап по существующей метке удаление (с подтверждением) * экспорт / импорт через диалог */
 
-    // ── ТОКЕН ПОЛЬЗОВАТЕЛЯ ────────────────────────────────────────────────────
+    // токен пользователя
     function getUserToken() {
         const KEY = 'ailurus_user_token';
         let token = localStorage.getItem(KEY);
+        // проверка условия
         if (!token || token.length < 16) {
             const arr = new Uint8Array(16);
             crypto.getRandomValues(arr);
             token = Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
             localStorage.setItem(KEY, token);
         }
+        // возврат результата
         return token;
     }
 
     const USER_TOKEN = getUserToken();
 
+    // объявление функции
     function apiFetch(url, options = {}) {
         options.headers = Object.assign({}, options.headers, {
             'X-User-Token': USER_TOKEN,
             'Content-Type': options.body ? 'application/json' : undefined
         });
         Object.keys(options.headers).forEach(k => {
+            // проверка условия
             if (options.headers[k] === undefined) delete options.headers[k];
         });
+        // возврат результата
         return fetch(url, options);
     }
 
-    // ── ОСНОВНАЯ ИНИЦИАЛИЗАЦИЯ ────────────────────────────────────────────────
+    // основная инициализация
     function initPoiManager(viewer) {
         let container = document.getElementById('dbUiContainer');
+        // проверка условия
         if (!container) {
             container = document.createElement('div');
             container.id = 'dbUiContainer';
@@ -64,7 +63,7 @@
         btn.innerHTML = '<img src="Sprites/Icons/Bookmarks.png" style="width:20px;height:20px;">';
         container.appendChild(btn);
 
-        // === ПАНЕЛЬ ===
+        // панель
         const panel = document.createElement('div');
         panel.id = 'poiPanel'; // Добавлен ID для стилизации в MobileAdapter
         panel.style.position = 'absolute';
@@ -117,6 +116,7 @@
         viewer.dataSources.add(poiDataSource);
         let handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
 
+        // объявление функции
         function createPoiCanvas(colorHex) {
             const canvas = document.createElement('canvas');
             canvas.width = 40;
@@ -126,9 +126,11 @@
             ctx.beginPath(); ctx.arc(cx, cy, 13.5, 0, 2 * Math.PI); ctx.fillStyle = '#FFFFFF'; ctx.fill();
             ctx.beginPath(); ctx.arc(cx, cy, 10.5, 0, 2 * Math.PI); ctx.fillStyle = '#000000'; ctx.fill();
             ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 2 * Math.PI); ctx.fillStyle = colorHex; ctx.fill();
+            // возврат результата
             return canvas;
         }
 
+        // объявление функции
         function createPoiDeleteCanvas(colorHex) {
             const canvas = createPoiCanvas(colorHex);
             const ctx = canvas.getContext('2d');
@@ -137,25 +139,33 @@
             ctx.lineCap = 'round';
             ctx.beginPath(); ctx.moveTo(12, 12); ctx.lineTo(28, 28); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(28, 12); ctx.lineTo(12, 28); ctx.stroke();
+            // возврат результата
             return canvas;
         }
 
+        // объявление функции
         function parsePoiText(rawText) {
+            // начало блока перехвата ошибок
             try {
                 const obj = JSON.parse(rawText);
+                // возврат результата
                 return { text: obj.t || rawText, color: obj.c || '#FF5500' };
             } catch (e) {
+                // возврат результата
                 return { text: rawText, color: '#FF5500' };
             }
         }
 
         let pendingDeleteId = null;
 
+        // объявление функции
         async function loadPois() {
             poiDataSource.entities.removeAll();
             pendingDeleteId = null;
+            // начало блока перехвата ошибок
             try {
                 const res = await apiFetch('/api/poi');
+                // проверка условия
                 if (!res.ok) return;
                 const pois = await res.json();
                 pois.forEach(p => {
@@ -187,53 +197,68 @@
             } catch (e) { console.error("Ошибка загрузки POI:", e); }
         }
 
+        // объявление функции
         async function deletePoi(entityStringId) {
             const dbId = entityStringId.replace('poi_', '');
+            // начало блока перехвата ошибок
             try {
                 const res = await apiFetch('/api/poi/' + dbId, { method: 'DELETE' });
+                // проверка условия
                 if (res.ok) await loadPois();
             } catch (e) {}
         }
 
+        // объявление функции
         function highlightForDelete(entityStringId) {
             const entity = poiDataSource.entities.getById(entityStringId);
+            // проверка условия
             if (!entity) return;
             entity.billboard.image = createPoiDeleteCanvas(entity._poiColor || '#FF5500');
         }
 
+        // объявление функции
         function unhighlightDelete(entityStringId) {
             const entity = poiDataSource.entities.getById(entityStringId);
+            // проверка условия
             if (!entity) return;
             entity.billboard.image = createPoiCanvas(entity._poiColor || '#FF5500');
         }
 
         btn.addEventListener('click', () => {
             isActive = !isActive;
+            // проверка условия
             if (isActive) {
                 btn.style.backgroundColor = 'rgba(38, 84, 121, 1)';
                 panel.style.display = 'flex';
                 loadPois();
 
+                // проверка условия
                 if (isMobile) {
                     handler.setInputAction(async function (click) {
+                        // проверка условия
                         if (window.ailurusTouchMoved) return;
                         const pickedObject = viewer.scene.pick(click.position);
                         const pickedId = (Cesium.defined(pickedObject) && pickedObject.id && typeof pickedObject.id.id === 'string' && pickedObject.id.id.startsWith('poi_')) ? pickedObject.id.id : null;
 
+                        // проверка условия
                         if (pickedId) {
+                            // проверка условия
                             if (pendingDeleteId === pickedId) {
                                 await deletePoi(pickedId);
                             } else {
+                                // проверка условия
                                 if (pendingDeleteId) unhighlightDelete(pendingDeleteId);
                                 pendingDeleteId = pickedId;
                                 highlightForDelete(pickedId);
                             }
                         } else {
+                            // проверка условия
                             if (pendingDeleteId) {
                                 unhighlightDelete(pendingDeleteId);
                                 pendingDeleteId = null;
                             } else {
                                 const cartesian = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid);
+                                // проверка условия
                                 if (cartesian) {
                                     const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
                                     const lon = Cesium.Math.toDegrees(cartographic.longitude);
@@ -241,8 +266,10 @@
                                     const rawLabel = document.getElementById('poiTextInput').value || 'Новая метка';
                                     const color = document.getElementById('poiColorInput').value;
                                     const textPayload = JSON.stringify({ t: rawLabel, c: color });
+                                    // начало блока перехвата ошибок
                                     try {
                                         const res = await apiFetch('/api/poi', { method: 'POST', body: JSON.stringify({ lat, lon, text: textPayload }) });
+                                        // проверка условия
                                         if (res.ok) loadPois();
                                     } catch (e) {}
                                 }
@@ -252,6 +279,7 @@
                 } else {
                     handler.setInputAction(async function (click) {
                         const cartesian = viewer.camera.pickEllipsoid(click.position, viewer.scene.globe.ellipsoid);
+                        // проверка условия
                         if (cartesian) {
                             const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
                             const lon = Cesium.Math.toDegrees(cartographic.longitude);
@@ -259,8 +287,10 @@
                             const rawLabel = document.getElementById('poiTextInput').value || 'Новая метка';
                             const color = document.getElementById('poiColorInput').value;
                             const textPayload = JSON.stringify({ t: rawLabel, c: color });
+                            // начало блока перехвата ошибок
                             try {
                                 const res = await apiFetch('/api/poi', { method: 'POST', body: JSON.stringify({ lat, lon, text: textPayload }) });
+                                // проверка условия
                                 if (res.ok) loadPois();
                             } catch (e) {}
                         }
@@ -268,6 +298,7 @@
 
                     handler.setInputAction(async function (click) {
                         const pickedObject = viewer.scene.pick(click.position);
+                        // проверка условия
                         if (Cesium.defined(pickedObject) && pickedObject.id && typeof pickedObject.id.id === 'string' && pickedObject.id.id.startsWith('poi_')) {
                             await deletePoi(pickedObject.id.id);
                         }
@@ -284,18 +315,22 @@
         });
 
         document.getElementById('poiExportBtn').addEventListener('click', async () => {
+            // начало блока перехвата ошибок
             try {
                 const res = await apiFetch('/api/poi');
                 const pois = await res.json();
                 const jsonStr = JSON.stringify(pois, null, 2);
                 const blob = new Blob([jsonStr], { type: 'application/json' });
 
+                // проверка условия
                 if (window.showSaveFilePicker) {
+                    // начало блока перехвата ошибок
                     try {
                         const fileHandle = await window.showSaveFilePicker({ suggestedName: 'my_bookmarks.json', types: [{ description: 'JSON файл', accept: { 'application/json': ['.json'] } }] });
                         const writable = await fileHandle.createWritable();
                         await writable.write(blob);
                         await writable.close();
+                        // возврат результата
                         return;
                     } catch (e) { if (e.name === 'AbortError') return; }
                 }
@@ -321,15 +356,20 @@
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
+            // проверка условия
             if (!file) return;
 
             const reader = new FileReader();
             reader.onload = async (ev) => {
+                // начало блока перехвата ошибок
                 try {
                     const pois = JSON.parse(ev.target.result);
+                    // проверка условия
                     if (!Array.isArray(pois)) throw new Error("Неверный формат файла");
 
+                    // начало цикла
                     for (const p of pois) {
+                        // проверка условия
                         if (p.lat === undefined || p.lon === undefined) continue;
                         await apiFetch('/api/poi', { method: 'POST', body: JSON.stringify({ lat: p.lat, lon: p.lon, text: p.text || 'Метка' }) });
                     }

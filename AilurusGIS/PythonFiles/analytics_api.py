@@ -9,24 +9,26 @@ from flask import Blueprint, jsonify, request
 
 analytics_bp = Blueprint('analytics', __name__)
 
-# Путь к БД: так как скрипт в PythonFiles/, поднимаемся на уровень выше в папку DB/
+# путь к бд: так как скрипт в pythonfiles/ поднимаемся на уровень выше в папку db/
 DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'DB')
 ANALYTICS_DB_PATH = os.path.join(DB_DIR, 'analytics.db')
 
-# Кэш для GeoIP
+# кэш для geoip
 _GEOIP_CACHE = {}
 _GEOIP_CACHE_TTL = 3600  # 1 час
 
 
+# объявление функции
 def init_analytics_db():
     """Инициализация реляционной базы данных для аналитики."""
+    # проверка условия
     if not os.path.exists(DB_DIR):
         os.makedirs(DB_DIR)
 
     conn = sqlite3.connect(ANALYTICS_DB_PATH)
     cursor = conn.cursor()
 
-    # 1. Таблица уникальных посетителей (ID — хэш от IP и UA)
+    # 1 таблица уникальных посетителей (id хэш от ip и ua)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS visitors (
             visitor_id TEXT PRIMARY KEY,
@@ -38,7 +40,7 @@ def init_analytics_db():
         )
     ''')
 
-    # 2. Таблица сессий (группирует визиты и действия)
+    # 2 таблица сессий (группирует визиты и действия)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sessions (
             session_id TEXT PRIMARY KEY,
@@ -50,7 +52,7 @@ def init_analytics_db():
         )
     ''')
 
-    # 3. Таблица просмотров страниц (Лендинг, Карта и т.д.)
+    # 3 таблица просмотров страниц (лендинг карта и тд)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS page_views (
             view_id TEXT PRIMARY KEY,
@@ -67,48 +69,62 @@ def init_analytics_db():
 init_analytics_db()
 
 
+# объявление функции
 def get_ip(req):
     """Извлекает реальный IP, даже если мы за прокси."""
     ip = req.headers.get('X-Forwarded-For', req.remote_addr)
+    # проверка условия
     if ip and ',' in ip:
         ip = ip.split(',')[0].strip()
+    # возврат результата
     return ip
 
 
+# объявление функции
 def get_region_by_ip(ip):
     """Определяет страну и город по IP."""
+    # проверка условия
     if not ip or ip in ('127.0.0.1', '::1', 'Unknown'):
+        # возврат результата
         return 'Local', 'Local'
 
     now = time.time()
     cached = _GEOIP_CACHE.get(ip)
+    # проверка условия
     if cached and now - cached['ts'] < _GEOIP_CACHE_TTL:
+        # возврат результата
         return cached['country'], cached['city']
 
+    # начало блока перехвата ошибок
     try:
         url = f"http://ip-api.com/json/{ip}?fields=status,country,city&lang=ru"
         req = Request(url, headers={"User-Agent": "AilurusGIS/Analytics"})
         with urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
+        # проверка условия
         if data.get('status') == 'success':
             country = data.get('country', 'Unknown')
             city    = data.get('city', 'Unknown')
         else:
             country, city = 'Unknown', 'Unknown'
+    # обработка ошибки
     except Exception:
         country, city = 'Unknown', 'Unknown'
 
     _GEOIP_CACHE[ip] = {'ts': now, 'country': country, 'city': city}
+    # возврат результата
     return country, city
 
 
+# объявление функции
 def make_visitor_fingerprint(ip, user_agent):
     """Создаёт уникальный ID посетителя без кукисов."""
     raw = f"{ip}|{user_agent}"
-    # Используем SHA-256 для создания надежного текстового ID
+    # используем sha256 для создания надежного текстового id
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
+# объявление функции
 def get_active_session(cursor, visitor_id):
     """Ищет сессию, которая была активна менее 30 минут назад."""
     cursor.execute('''
@@ -117,11 +133,14 @@ def get_active_session(cursor, visitor_id):
         ORDER BY end_time DESC LIMIT 1
     ''', (visitor_id,))
     row = cursor.fetchone()
+    # возврат результата
     return row[0] if row else None
 
 
+# объявление функции
 def log_page_view(page_name, req):
     """Главная функция: записывает просмотр страницы и обновляет сессию."""
+    # начало блока перехвата ошибок
     try:
         ip = get_ip(req)
         ua = req.headers.get('User-Agent', 'Unknown')
@@ -133,27 +152,28 @@ def log_page_view(page_name, req):
         conn = sqlite3.connect(ANALYTICS_DB_PATH)
         cursor = conn.cursor()
 
-        # 1. Обновляем/добавляем пользователя (UPSERT)
+        # 1 обновляем/добавляем пользователя (upsert)
         cursor.execute('''
             INSERT INTO visitors (visitor_id, ip_address, user_agent, country, city)
             VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(visitor_id) DO NOTHING
         ''', (visitor_id, ip, ua, country, city))
 
-        # 2. Управление сессией
+        # 2 управление сессией
         session_id = get_active_session(cursor, visitor_id)
+        # проверка условия
         if session_id:
-            # Продлеваем текущую сессию
+            # продлеваем текущую сессию
             cursor.execute('UPDATE sessions SET end_time = CURRENT_TIMESTAMP WHERE session_id = ?', (session_id,))
         else:
-            # Создаем новую сессию
+            # создаем новую сессию
             session_id = str(uuid.uuid4())
             cursor.execute('''
                 INSERT INTO sessions (session_id, visitor_id, referrer)
                 VALUES (?, ?, ?)
             ''', (session_id, visitor_id, ref))
 
-        # 3. Запись просмотра страницы
+        # 3 запись просмотра страницы
         view_id = str(uuid.uuid4())
         cursor.execute('''
             INSERT INTO page_views (view_id, session_id, page_name)
@@ -162,38 +182,41 @@ def log_page_view(page_name, req):
 
         conn.commit()
         conn.close()
+    # обработка ошибки
     except Exception as e:
         print(f"Ошибка записи page_view: {e}")
 
 
-# --- API ЭНДПОИНТЫ ДЛЯ ФРОНТЕНДА И АДМИНКИ ---
+# api эндпоинты для фронтенда и админки
 
 @analytics_bp.route('/api/analytics/stats', methods=['GET'])
+# объявление функции
 def get_stats():
     """Сбор базовой аналитики через JOIN запросы."""
+    # начало блока перехвата ошибок
     try:
         conn = sqlite3.connect(ANALYTICS_DB_PATH)
         cursor = conn.cursor()
 
-        # Всего уникальных посетителей
+        # всего уникальных посетителей
         cursor.execute("SELECT COUNT(*) FROM visitors")
         total_visitors = cursor.fetchone()[0]
 
-        # Средняя продолжительность сессии (в минутах)
+        # средняя продолжительность сессии (в минутах)
         cursor.execute('''
             SELECT AVG((julianday(end_time) - julianday(start_time)) * 1440) 
             FROM sessions WHERE end_time > start_time
         ''')
         avg_session_min = cursor.fetchone()[0] or 0
 
-        # Популярные страницы
+        # популярные страницы
         cursor.execute('''
             SELECT page_name, COUNT(*) FROM page_views 
             GROUP BY page_name ORDER BY COUNT(*) DESC
         ''')
         pages = dict(cursor.fetchall())
 
-        # География посетителей (топ 10)
+        # география посетителей (топ 10)
         cursor.execute('''
             SELECT country, city, COUNT(*) as cnt
             FROM visitors
@@ -204,6 +227,7 @@ def get_stats():
         regions = [{"country": r[0], "city": r[1], "visitors": r[2]} for r in cursor.fetchall()]
 
         conn.close()
+        # возврат результата
         return jsonify({
             "status": "success",
             "total_visitors": total_visitors,
@@ -211,5 +235,7 @@ def get_stats():
             "page_views": pages,
             "top_regions": regions
         })
+    # обработка ошибки
     except Exception as e:
+        # возврат результата
         return jsonify({"status": "error", "message": str(e)}), 500

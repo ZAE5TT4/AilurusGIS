@@ -1,38 +1,32 @@
-/**
- * MobileAdapter.js JSFiles/
- * Мобильная адаптация интерфейса AilurusGIS.
- * Перестраивает боковые панели инструментов под сенсорные экраны,
- * добавляет кнопку сворачивания тулбара и защиту от ложных кликов при свайпе.
- * Подключается ПОСЛЕ LoadingIndicator.js и ДО любых визуализаций.
- */
+/* * * mobileadapterjs jsfiles/ * мобильная адаптация интерфейса ailurusgis * перестраивает боковые панели инструментов под сенсорные экраны * добавляет кнопку сворачивания тулбара и защиту от ложных кликов при свайпе * подключается после loadingindicatorjs и до любых визуализаций */
 (function () {
 
-    // Определяет мобильное устройство по User-Agent и ширине экрана
+    // определяет мобильное устройство по useragent и ширине экрана
     const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
-    // Определяет маленький телефон (< 480px) для дополнительных оптимизаций
+    // определяет маленький телефон (< 480px) для дополнительных оптимизаций
     const IS_SMALL  = window.innerWidth <= 480;
 
-    // Проверяет ориентацию экрана в момент вызова
+    // проверяет ориентацию экрана в момент вызова
     const IS_LANDSCAPE = () => window.innerWidth > window.innerHeight;
 
-    // Публикует флаг мобильного режима — другие модули читают через window.AilurusIsMobile
+    // публикует флаг мобильного режима другие модули читают через windowailurusismobile
     window.AilurusIsMobile = IS_MOBILE;
 
-    // На десктопе завершает работу сразу — никаких изменений не вносит
+    // на десктопе завершает работу сразу никаких изменений не вносит
     if (!IS_MOBILE) return;
 
 
-    // ── 1. ГЛОБАЛЬНЫЙ CSS ────────────────────────────────────────────────────
+    // 1 глобальный css
     //
-    // Создаёт тег <style> и вставляет его в <head>.
-    // Применяет мобильные стили ко всем элементам интерфейса сразу.
+    // создаёт тег <style> и вставляет его в <head>
+    // применяет мобильные стили ко всем элементам интерфейса сразу
 
     const style = document.createElement('style');
     style.id = 'ailurus-mobile-style';
     style.textContent = `
 
-        /* Cesium кнопки — расширяет тач-зону до минимально комфортного размера */
+        /* cesium кнопки расширяет тачзону до минимально комфортного размера */
         .cesium-button,
         .cesium-toolbar-button {
             min-width: 38px !important;
@@ -45,13 +39,13 @@
             -webkit-tap-highlight-color: transparent;
         }
 
-        /* Иконки внутри кнопок (кроме фотокарты) — увеличивает для читаемости */
+        /* иконки внутри кнопок (кроме фотокарты) увеличивает для читаемости */
         .cesium-toolbar-button img:not(.cesium-baseLayerPicker-selected) {
             width: 22px !important;
             height: 22px !important;
         }
 
-        /* Исправление для фото карты (BaseLayerPicker) */
+        /* исправление для фото карты (baselayerpicker) */
         .cesium-button.cesium-baseLayerPicker-button {
             padding: 0 !important;
             display: block !important;
@@ -64,7 +58,7 @@
             border-radius: 4px;
         }
 
-        /* Боковые контейнеры кнопок и панели — плавный переход */
+        /* боковые контейнеры кнопок и панели плавный переход */
         #environmentUiContainer,
         #bordersUiContainer,
         #bathymetryUiContainer,
@@ -79,8 +73,8 @@
             transition: opacity 0.25s ease, transform 0.25s ease, left 0.25s ease !important;
         }
 
-        /* Скрытое состояние тулбара — применяется классом toolbar-hidden на body */
-        /* Уводит все боковые контейнеры и открытые панели влево и делает невидимыми */
+        /* скрытое состояние тулбара применяется классом toolbarhidden на body */
+        /* уводит все боковые контейнеры и открытые панели влево и невидимыми */
         body.toolbar-hidden #environmentUiContainer,
         body.toolbar-hidden #bordersUiContainer,
         body.toolbar-hidden #bathymetryUiContainer,
@@ -96,10 +90,10 @@
             transform: translateX(-55px) !important;
         }
 
-        /* Кнопка тоггла — плавный горизонтальный сдвиг при скрытии/показе тулбара */
+        /* кнопка тоггла плавный горизонтальный сдвиг при скрытии/показе тулбара */
         #mobileToolbarToggle {
             transition: left 0.25s ease, transform 0.25s ease !important;
-            z-index: 3000 !important; /* Гарантированно поверх всех панелей */
+            z-index: 3000 !important; /* гарантированно поверх всех панелей */
         }
         body.toolbar-hidden #mobileToolbarToggle {
             transform: translateX(0) !important;
@@ -108,7 +102,7 @@
             transform: translateX(0) !important;
         }
 
-        /* Плавающие панели с данными (погода, AQI, батиметрия) */
+        /* плавающие панели с данными (погода aqi батиметрия) */
         body > div[style*="position: absolute"][style*="background"]:not(#cityDetailsSidebar):not(#cityDetailsSidebarToggle),
         #cesiumContainer > div[style*="position: absolute"][style*="background"]:not(#cityDetailsSidebar):not(#cityDetailsSidebarToggle) {
             max-width: calc(100vw - 12px) !important;
@@ -117,31 +111,31 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        /* Индикатор загрузки — поднимает выше кнопки сворачивания тулбара */
+        /* индикатор загрузки поднимает выше кнопки сворачивания тулбара */
         #global-loading-indicator {
             bottom: 75px !important;
             font-size: 13px !important;
         }
 
-        /* Логотип — уменьшает размер и прозрачность чтобы не мешал управлению */
+        /* логотип уменьшает размер и прозрачность чтобы не мешал управлению */
         #logo {
             width: 110px !important;
             opacity: 0.35 !important;
         }
 
-        /* Кнопка сворачивания тулбара — показывает её (по умолчанию скрыта на десктопе) */
+        /* кнопка сворачивания тулбара показывает её (по умолчанию скрыта на десктопе) */
         #mobileToolbarToggle {
             display: flex !important;
         }
 
-        /* Выравнивание панелей Времени и Закладок на мобильных устройствах */
+        /* выравнивание панелей времени и закладок на мобильных устройствах */
         @media (max-width: 768px) {
             #dayNightPanel, #poiPanel {
-                max-width: calc(100vw - 125px) !important; /* Исключаем переполнение экрана, но не ломаем отступ слева */
+                max-width: calc(100vw - 125px) !important; /* исключаем переполнение экрана но не ломаем отступ слева */
             }
         }
 
-        /* Ландшафтная ориентация с маленькой высотой — сдвигает ряды кнопок вверх */
+        /* ландшафтная ориентация с маленькой высотой сдвигает ряды кнопок вверх */
         @media (max-height: 500px) {
             #environmentUiContainer { top: 6px !important; }
             #bordersUiContainer     { top: 46px !important; }
@@ -155,7 +149,7 @@
             #mobileToolbarToggle    { bottom: 48px !important; }
         }
 
-        /* Маленькие телефоны (< 380px) — уменьшает иконки и скрывает логотип */
+        /* маленькие телефоны (< 380px) уменьшает иконки и скрывает логотип */
         @media (max-width: 380px) {
             .cesium-toolbar-button img:not(.cesium-baseLayerPicker-selected) {
                 width: 18px !important;
@@ -165,15 +159,15 @@
         }
     `;
 
-    // Вставляет стили в документ — с этого момента все правила выше вступают в силу
+    // вставляет стили в документ с этого момента все правила выше вступают в силу
     document.head.appendChild(style);
 
 
-    // ── 2. ЗАЩИТА ОТ ЛОЖНЫХ КЛИКОВ ПРИ СВАЙПЕ ───────────────────────────────
+    // 2 защита от ложных кликов при свайпе
     //
-    // Вешает слушатели на document глобально, т.к. canvas Cesium ещё не существует.
-    // Отслеживает смещение пальца: если > 10px — помечает касание как свайп.
-    // Другие модули читают window.ailurusTouchMoved чтобы игнорировать такие касания.
+    // вешает слушатели на document глобально тк canvas cesium ещё не существует
+    // отслеживает смещение пальца: если > 10px помечает касание как свайп
+    // другие модули читают windowailurustouchmoved чтобы игнорировать такие касания
 
     let _touchMoved = false;
     let _touchStartX = 0, _touchStartY = 0;
@@ -187,6 +181,7 @@
     document.addEventListener('touchmove', function(e) {
         const dx = Math.abs(e.touches[0].clientX - _touchStartX);
         const dy = Math.abs(e.touches[0].clientY - _touchStartY);
+        // проверка условия
         if (dx > 10 || dy > 10) _touchMoved = true;
     }, { passive: true });
 
@@ -195,9 +190,11 @@
     });
 
 
-    // ── 3. КНОПКА СВОРАЧИВАНИЯ ТУЛБАРА ──────────────────────────────────────
+    // 3 кнопка сворачивания тулбара
 
+    // объявление функции
     function ensureMobileToggleButton() {
+        // проверка условия
         if (document.getElementById('mobileToolbarToggle')) return;
 
         const btn = document.createElement('button');
@@ -230,6 +227,7 @@
         adjustPanelsForMobile();
     });
 
+    // проверка условия
     if (document.readyState !== 'loading') {
         ensureMobileToggleButton();
         setTimeout(function() {
@@ -239,10 +237,12 @@
     }
 
 
-    // ── 4. ЛОГИКА КНОПКИ СВОРАЧИВАНИЯ ───────────────────────────────────────
+    // 4 логика кнопки сворачивания
 
+    // объявление функции
     function initToggleBehavior() {
         const btn = document.getElementById('mobileToolbarToggle');
+        // проверка условия
         if (!btn || btn._mobileAdapterInited) return;
         btn._mobileAdapterInited = true;
 
@@ -258,24 +258,26 @@
         btn.addEventListener('click', function() {
             toolbarVisible = !toolbarVisible;
 
+            // проверка условия
             if (toolbarVisible) {
                 document.body.classList.remove('toolbar-hidden');
                 btn.innerHTML = iconMenu;
                 btn.title = 'Скрыть инструменты';
-                // Сдвигаем кнопку вправо — за тулбар (примерно ширина кнопок ~50px)
+                // сдвигаем кнопку вправо за тулбар (примерно ширина кнопок ~50px)
                 btn.style.left = '58px';
             } else {
                 document.body.classList.add('toolbar-hidden');
                 btn.innerHTML = iconPlay;
                 btn.title = 'Показать инструменты';
-                // Возвращаем кнопку к левому краю
+                // возвращаем кнопку к левому краю
                 btn.style.left = '15px';
             }
         });
     }
 
-    // ── 5. ПОДСТРОЙКА ПЛАВАЮЩИХ ПАНЕЛЕЙ ─────────────────────────────────────
+    // 5 подстройка плавающих панелей
 
+    // объявление функции
     function adjustPanelsForMobile() {
         const allPanels = document.querySelectorAll(
             '[id$="Panel"]:not(#global-loading-indicator), ' +
@@ -284,6 +286,7 @@
 
         allPanels.forEach(function(panel) {
             const s = panel.style;
+            // проверка условия
             if (!s.maxWidth || parseInt(s.maxWidth) > window.innerWidth - 20) {
                 panel.style.maxWidth = (window.innerWidth - 16) + 'px';
             }
