@@ -1,17 +1,18 @@
 #
 # flask server for ailurusgis (landing + map) with relational analytics
 #
-# run: python serverpy
+# run: python server.py
 #
 
 import os
+import re
 import sqlite3
 import time
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, jsonify, request, abort
 
 # импорт модулей из pythonfiles
 import sys
@@ -35,6 +36,24 @@ except ImportError as e:
     log_page_view = lambda page, req: None  # Заглушка, если файл не найден
 
 app = Flask(__name__, static_folder=".", static_url_path="")
+
+# защита от доступа к серверным файлам через статику
+BLOCKED_EXTENSIONS = {'.py', '.db', '.sqlite', '.sqlite3', '.pyc'}
+BLOCKED_PATHS = {'PythonFiles', 'DB', '__pycache__', '.git', '.vscode'}
+
+@app.before_request
+def block_sensitive_files():
+    # блокирует доступ к серверным и конфигурационным файлам
+    path = request.path.lstrip('/')
+    path_lower = path.lower()
+    # проверка расширения файла
+    for ext in BLOCKED_EXTENSIONS:
+        if path_lower.endswith(ext):
+            abort(403)
+    # проверка запрещённых директорий
+    for blocked in BLOCKED_PATHS:
+        if path_lower.startswith(blocked.lower() + '/') or path_lower == blocked.lower():
+            abort(403)
 
 # регистрация blueprints
 if poi_bp:
@@ -69,10 +88,26 @@ def map_page():
 #
 
 AQICN_API_BASE = "https://api.waqi.info"
-AQICN_DEFAULT_TOKEN = "68f7e90d5c4016cf4a7e1ebc8b685acf315a246d"
+# токен загружается из переменной окружения или используется значение по умолчанию
+AQICN_DEFAULT_TOKEN = os.environ.get("AQICN_API_TOKEN", "68f7e90d5c4016cf4a7e1ebc8b685acf315a246d")
 OPEN_METEO_FORECAST_BASE = "https://api.open-meteo.com/v1/forecast"
 OPEN_METEO_AIR_QUALITY_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality"
 OPEN_METEO_CACHE = {}
+# максимальный размер кэша для предотвращения утечки памяти
+OPEN_METEO_CACHE_MAX_SIZE = 500
+
+# объявление функции
+def cleanup_cache():
+    # удаляет устаревшие записи из кэша и ограничивает его размер
+    now = time.time()
+    expired_keys = [k for k, v in OPEN_METEO_CACHE.items() if now - v.get('timestamp', 0) > 3600]
+    for k in expired_keys:
+        del OPEN_METEO_CACHE[k]
+    # если кэш всё ещё слишком большой удаляет самые старые записи
+    if len(OPEN_METEO_CACHE) > OPEN_METEO_CACHE_MAX_SIZE:
+        sorted_keys = sorted(OPEN_METEO_CACHE.keys(), key=lambda k: OPEN_METEO_CACHE[k].get('timestamp', 0))
+        for k in sorted_keys[:len(OPEN_METEO_CACHE) - OPEN_METEO_CACHE_MAX_SIZE]:
+            del OPEN_METEO_CACHE[k]
 
 # объявление функции
 def get_aqicn_token():
@@ -123,6 +158,8 @@ def proxy_aqicn(path, params):
 
 # объявление функции
 def proxy_open_meteo(base_url, ttl_seconds):
+    # очистка кэша от устаревших записей перед использованием
+    cleanup_cache()
     params = request.args.to_dict(flat=True)
     cache_key = f"{base_url}?{urlencode(sorted(params.items()), doseq=True)}"
     cached = OPEN_METEO_CACHE.get(cache_key)
@@ -208,6 +245,9 @@ def search_cities():
     if not query or len(query) < 2:
         # возврат результата
         return jsonify([])
+    # ограничение длины запроса для безопасности
+    if len(query) > 100:
+        return jsonify({"error": "Слишком длинный запрос"}), 400
     db_path = os.path.join(os.path.dirname(__file__), 'DB', 'world_locations.db')
     # проверка условия
     if not os.path.exists(db_path):
@@ -218,7 +258,9 @@ def search_cities():
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM locations WHERE full_name_nd LIKE ? LIMIT 50", (f'%{query}%',))
+        # экранирование спецсимволов LIKE для защиты от SQL инъекций
+        safe_query = query.replace('%', '\\%').replace('_', '\\_')
+        cursor.execute("SELECT * FROM locations WHERE full_name_nd LIKE ? ESCAPE '\\' LIMIT 50", (f'%{safe_query}%',))
         rows = cursor.fetchall()
         results = []
         # начало цикла
@@ -242,8 +284,13 @@ def search_cities():
         return jsonify(results)
     # обработка ошибки
     except Exception as e:
+        # закрытие соединения при ошибке
+        try:
+            conn.close()
+        except Exception:
+            pass
         # возврат результата
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Ошибка поиска в базе данных"}), 500
 
 @app.route("/api/borders/shp")
 # объявление функции
@@ -251,8 +298,8 @@ def borders_shp():
     shp_path = os.path.join(os.path.dirname(__file__), 'GeoData', 'Borders', 'ne_10m_admin_0_countries_lakes.shp')
     # проверка условия
     if not os.path.exists(shp_path):
-        # возврат результата
-        return jsonify({"error": f"Файл {shp_path} не найден"}), 404
+        # возврат результата (без раскрытия серверного пути клиенту)
+        return jsonify({"error": "Файл границ не найден на сервере"}), 404
     # начало блока перехвата ошибок
     try:
         import shapefile
@@ -318,7 +365,7 @@ def proxy_satellite_js():
                 # возврат результата
                 return Response(body, status=200, content_type="application/javascript; charset=utf-8")
         # обработка ошибки
-        except:
+        except Exception:
             continue
     # возврат результата
     return jsonify({"error": "Could not fetch satellite.js"}), 502
@@ -327,7 +374,13 @@ def proxy_satellite_js():
 @app.after_request
 # объявление функции
 def after_request(response):
-    response.headers.add("Access-Control-Allow-Origin", "*")
+    # cors разрешён только для api прокси маршрутов (не для аналитики и poi)
+    path = request.path
+    if path.startswith('/api/open-meteo/') or path.startswith('/api/aqi/') or path.startswith('/api/tle') or path.startswith('/api/satellite-js'):
+        response.headers.add("Access-Control-Allow-Origin", "*")
+    # заголовки безопасности
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'SAMEORIGIN'
     # возврат результата
     return response
 

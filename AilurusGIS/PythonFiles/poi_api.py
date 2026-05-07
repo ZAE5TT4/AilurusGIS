@@ -58,13 +58,25 @@ def get_pois():
         # возврат результата
         return jsonify({"error": "Токен пользователя не указан или недействителен"}), 401
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, lat, lon, text FROM pois WHERE user_token = ?', (token,))
-    pois = [{"id": r[0], "lat": r[1], "lon": r[2], "text": r[3]} for r in cursor.fetchall()]
-    conn.close()
-    # возврат результата
-    return jsonify(pois)
+    conn = None
+    # начало блока перехвата ошибок
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, lat, lon, text FROM pois WHERE user_token = ?', (token,))
+        pois = [{"id": r[0], "lat": r[1], "lon": r[2], "text": r[3]} for r in cursor.fetchall()]
+        # возврат результата
+        return jsonify(pois)
+    # обработка ошибки
+    except Exception as e:
+        return jsonify({"error": "Ошибка чтения закладок"}), 500
+    finally:
+        # гарантированное закрытие соединения
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @poi_bp.route('/api/poi', methods=['POST'])
@@ -77,6 +89,9 @@ def add_poi():
         return jsonify({"error": "Токен пользователя не указан или недействителен"}), 401
 
     data = request.json
+    # проверка наличия тела запроса
+    if not data:
+        return jsonify({"error": "Пустое тело запроса"}), 400
     lat = data.get('lat')
     lon = data.get('lon')
     text = data.get('text', 'Без названия')
@@ -86,18 +101,46 @@ def add_poi():
         # возврат результата
         return jsonify({"error": "lat и lon обязательны"}), 400
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(
-        'INSERT INTO pois (user_token, lat, lon, text) VALUES (?, ?, ?, ?)',
-        (token, lat, lon, text)
-    )
-    new_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    # валидация типов и диапазонов координат
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (ValueError, TypeError):
+        return jsonify({"error": "lat и lon должны быть числами"}), 400
 
-    # возврат результата
-    return jsonify({"id": new_id, "lat": lat, "lon": lon, "text": text}), 201
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return jsonify({"error": "Координаты вне допустимого диапазона"}), 400
+
+    # ограничение длины текста метки
+    if not isinstance(text, str):
+        text = str(text)
+    if len(text) > 500:
+        text = text[:500]
+
+    conn = None
+    # начало блока перехвата ошибок
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO pois (user_token, lat, lon, text) VALUES (?, ?, ?, ?)',
+            (token, lat, lon, text)
+        )
+        new_id = cursor.lastrowid
+        conn.commit()
+
+        # возврат результата
+        return jsonify({"id": new_id, "lat": lat, "lon": lon, "text": text}), 201
+    # обработка ошибки
+    except Exception as e:
+        return jsonify({"error": "Ошибка сохранения метки"}), 500
+    finally:
+        # гарантированное закрытие соединения
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 @poi_bp.route('/api/poi/<int:poi_id>', methods=['DELETE'])
@@ -109,18 +152,30 @@ def delete_poi(poi_id):
         # возврат результата
         return jsonify({"error": "Токен пользователя не указан или недействителен"}), 401
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    # удаляем только если метка принадлежит этому пользователю
-    cursor.execute('DELETE FROM pois WHERE id = ? AND user_token = ?', (poi_id, token))
-    deleted = cursor.rowcount
-    conn.commit()
-    conn.close()
+    conn = None
+    # начало блока перехвата ошибок
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        # удаляет только если метка принадлежит этому пользователю
+        cursor.execute('DELETE FROM pois WHERE id = ? AND user_token = ?', (poi_id, token))
+        deleted = cursor.rowcount
+        conn.commit()
 
-    # проверка условия
-    if deleted == 0:
+        # проверка условия
+        if deleted == 0:
+            # возврат результата
+            return jsonify({"error": "Метка не найдена или доступ запрещён"}), 404
+
         # возврат результата
-        return jsonify({"error": "Метка не найдена или доступ запрещён"}), 404
-
-    # возврат результата
-    return jsonify({"status": "deleted", "id": poi_id})
+        return jsonify({"status": "deleted", "id": poi_id})
+    # обработка ошибки
+    except Exception as e:
+        return jsonify({"error": "Ошибка удаления метки"}), 500
+    finally:
+        # гарантированное закрытие соединения
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass

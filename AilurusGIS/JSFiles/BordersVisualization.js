@@ -46,10 +46,10 @@ function initBordersVisualization(viewer) {
         return btn;
     }
 
-    const btnBorders1 = createBorderButton('Sprites/Icons/Borders.png', 'Пользовательские границы (Вкл/Выкл)');
+    const btnBorders1 = createBorderButton('Sprites/Icons/Borders.png', 'Границы стран (KML)');
     bordersUiContainer.appendChild(btnBorders1);
 
-    const btnBorders2 = createBorderButton('Sprites/Icons/Borders2.png', 'Границы стран SHP (Вкл/Выкл)');
+    const btnBorders2 = createBorderButton('Sprites/Icons/Borders2.png', 'Границы стран (SHP)');
     bordersUiContainer.appendChild(btnBorders2);
 
     let layerVisible1 = false;
@@ -156,13 +156,13 @@ function initBordersVisualization(viewer) {
                 } else {
                     dataSource1.show = true;
                 }
-                btnBorders1.title = 'Пользовательские границы (Вкл)';
+                btnBorders1.title = 'Границы стран KML (Вкл)';
             } else {
                 // проверка условия
                 if (dataSource1) {
                     dataSource1.show = false;
                 }
-                btnBorders1.title = 'Пользовательские границы (Выкл)';
+                btnBorders1.title = 'Границы стран KML (Выкл)';
             }
         } catch (error) {
             console.error('Ошибка загрузки слоя CustomBorders:', error);

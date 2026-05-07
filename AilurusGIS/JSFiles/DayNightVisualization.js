@@ -23,7 +23,7 @@
         btn.className = 'cesium-button cesium-toolbar-button';
         btn.style.width = '30px'; btn.style.height = '30px'; btn.style.padding = '0';
         btn.style.display = 'flex'; btn.style.justifyContent = 'center'; btn.style.alignItems = 'center';
-        btn.title = 'Терминатор: День и Ночь';
+        btn.title = 'День и ночь';
 
         const icon = document.createElement('img');
         icon.src = 'Sprites/Icons/DayAndNight.png';

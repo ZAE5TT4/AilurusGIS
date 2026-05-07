@@ -2,8 +2,6 @@
 // объявление функции
 function applyGlobeOuterGlow(viewer) {
     
-    console.log('🌟 GlobeOuterGlow v4 (толстая близко + прижата со всех сторон) загружен!');
-
     const outerGlowShader = `
         uniform sampler2D colorTexture;
         uniform sampler2D depthTexture;

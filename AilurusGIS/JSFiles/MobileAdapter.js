@@ -301,6 +301,4 @@
         adjustPanelsForMobile();
     });
 
-    console.log('[MobileAdapter] Инициализирован. Мобильный режим:', IS_MOBILE, '| Маленький экран:', IS_SMALL);
-
 })();

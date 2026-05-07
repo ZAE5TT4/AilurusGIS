@@ -23,7 +23,7 @@
         btn.className = 'cesium-button cesium-toolbar-button';
         btn.style.width = '30px'; btn.style.height = '30px'; btn.style.padding = '0';
         btn.style.display = 'flex'; btn.style.justifyContent = 'center'; btn.style.alignItems = 'center';
-        btn.title = 'Радар осадков онлайн';
+        btn.title = 'Радар осадков';
 
         const icon = document.createElement('img');
         icon.src = 'Sprites/Icons/Precipitation.png';

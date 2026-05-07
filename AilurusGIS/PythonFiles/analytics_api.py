@@ -17,6 +17,9 @@ ANALYTICS_DB_PATH = os.path.join(DB_DIR, 'analytics.db')
 _GEOIP_CACHE = {}
 _GEOIP_CACHE_TTL = 3600  # 1 час
 
+# ключ доступа к статистике (загружается из переменной окружения)
+ANALYTICS_API_KEY = os.environ.get('ANALYTICS_API_KEY', '')
+
 
 # объявление функции
 def init_analytics_db():
@@ -140,6 +143,7 @@ def get_active_session(cursor, visitor_id):
 # объявление функции
 def log_page_view(page_name, req):
     """Главная функция: записывает просмотр страницы и обновляет сессию."""
+    conn = None
     # начало блока перехвата ошибок
     try:
         ip = get_ip(req)
@@ -181,10 +185,16 @@ def log_page_view(page_name, req):
         ''', (view_id, session_id, page_name))
 
         conn.commit()
-        conn.close()
     # обработка ошибки
     except Exception as e:
         print(f"Ошибка записи page_view: {e}")
+    finally:
+        # гарантированное закрытие соединения с базой
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 # api эндпоинты для фронтенда и админки
@@ -193,6 +203,12 @@ def log_page_view(page_name, req):
 # объявление функции
 def get_stats():
     """Сбор базовой аналитики через JOIN запросы."""
+    # защита эндпоинта статистики ключом доступа
+    if ANALYTICS_API_KEY:
+        provided_key = request.args.get('key', '') or request.headers.get('X-Analytics-Key', '')
+        if provided_key != ANALYTICS_API_KEY:
+            return jsonify({"status": "error", "message": "Доступ запрещён"}), 403
+    conn = None
     # начало блока перехвата ошибок
     try:
         conn = sqlite3.connect(ANALYTICS_DB_PATH)
@@ -238,4 +254,11 @@ def get_stats():
     # обработка ошибки
     except Exception as e:
         # возврат результата
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"status": "error", "message": "Ошибка сбора статистики"}), 500
+    finally:
+        # гарантированное закрытие соединения
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass

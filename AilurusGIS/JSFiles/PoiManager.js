@@ -59,7 +59,7 @@
         btn.style.display = 'flex';
         btn.style.justifyContent = 'center';
         btn.style.alignItems = 'center';
-        btn.title = 'Мои закладки (POIs)';
+        btn.title = 'Закладки на карте';
         btn.innerHTML = '<img src="Sprites/Icons/Bookmarks.png" style="width:20px;height:20px;">';
         container.appendChild(btn);
 
@@ -189,7 +189,7 @@
                             horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
                             pixelOffset: new Cesium.Cartesian2(24, 0),
                             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                            translucencyByDistance: new Cesium.NearFarScalar(3000000, 1.0, 6000000, 0.0)
+                            translucencyByDistance: new Cesium.NearFarScalar(8000000, 1.0, 15000000, 0.0)
                         },
                         _poiColor: parsed.color
                     });

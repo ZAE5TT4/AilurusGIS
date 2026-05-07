@@ -24,7 +24,7 @@
         btn.style.display = 'flex'; 
         btn.style.justifyContent = 'center'; 
         btn.style.alignItems = 'center';
-        btn.title = '3D Здания (OSM Buildings)';
+        btn.title = '3D Здания';
 
         const icon = document.createElement('img');
         icon.src = 'Sprites/Icons/OSMBuildings.png';

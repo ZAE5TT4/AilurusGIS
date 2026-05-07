@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
     /* * * aqi станции глобальное покрытие * текст появляется плавно при приближении иконки стиля "прогноз погоды" * экстремальная оптимизация: кэширование иконок и асинхронный рендеринг для устранения фризов * исправления v5: * ускорена анимация масштаба (bloomэффект) при соединении/отсоединении кластеров */
     // объявление функции
     function initEnvironmentalVisualization(viewer, options) {
@@ -7,7 +7,7 @@
 
         const config = Object.assign({
             bounds: { latMin: -85.0, lonMin: -180.0, latMax: 85.0, lonMax: 180.0 },
-            maxStations: 10000,
+            maxStations: 5000,
             cacheKey: 'cesium_aqi_bounds_cache_global_v2',
             cacheMs: 1000 * 60 * 15 
         }, options || {});
@@ -94,28 +94,8 @@
 
         const colorCache = {};
         const outlineCache = {};
-        
-        // объявление функции
-        function getAlphaColor(alpha) {
-            const a = Math.round(alpha * 100);
-            // проверка условия
-            if (colorCache[a]) return colorCache[a];
-            colorCache[a] = new Cesium.Color(1, 1, 1, alpha);
-            // возврат результата
-            return colorCache[a];
-        }
-        
-        // объявление функции
-        function getAlphaOutline(alpha) {
-            const a = Math.round(alpha * 100);
-            // проверка условия
-            if (outlineCache[a]) return outlineCache[a];
-            outlineCache[a] = new Cesium.Color(0, 0, 0, alpha);
-            // возврат результата
-            return outlineCache[a];
-        }
 
-        // плавное исчезновение и анимация
+        // плавная анимация появления
         const entityPositions = []; 
         let edgeFadeHandle = null;
 
@@ -123,34 +103,20 @@
         function setupEdgeFade() {
             // проверка условия
             if (edgeFadeHandle) return; 
-            edgeFadeHandle = viewer.scene.preUpdate.addEventListener(function () {
+            let localFrame = 0;
+            edgeFadeHandle = viewer.scene.postRender.addEventListener(function () {
                 frameCount++;
+                localFrame++;
                 // проверка условия
                 if (!layerVisible || entityPositions.length === 0) return;
+                // выполняем анимацию только каждый 3 кадр для экономии ресурсов
+                if (localFrame % 3 !== 0) return;
 
-                const cameraPos = viewer.camera.positionWC;
-                // проверка условия
-                if (!cameraPos) return;
-
-                const camMag = Cesium.Cartesian3.magnitude(cameraPos);
-                // проверка условия
-                if (camMag === 0) return;
-
-                const earthR = 6378137.0;
-                const safeCamMag = Math.max(camMag, earthR + 100);
-                
-                const horizonAngle = Math.acos(earthR / safeCamMag);
-                const horizonCos = Math.cos(horizonAngle);
-                const fadeStartCos = Math.cos(horizonAngle * 0.70);
-                const cosRange = fadeStartCos - horizonCos;
-
-                // 1 точки станций
+                // анимация масштабирования новых точек
+                let allDone = true;
                 for (let i = 0; i < entityPositions.length; i++) {
                     const item = entityPositions[i];
                     const entity = item.entity;
-                    const pPos = item.position;
-                    const pMag = item.pMag;
-
                     const isClustered = entity._lastClusteredFrame >= frameCount - 2;
 
                     // проверка условия
@@ -159,58 +125,18 @@
                     }
                     entity._wasClustered = isClustered;
 
-                    // ускоренная анимация масштабирования (шаг 020 вместо 008)
                     if (!isClustered && entity._currentScale < 1.0) {
-                        entity._currentScale += 0.20; 
-                        // проверка условия
+                        entity._currentScale += 0.25; 
                         if (entity._currentScale > 1.0) entity._currentScale = 1.0;
+                        allDone = false;
                     }
-
-                    const dot = Cesium.Cartesian3.dot(cameraPos, pPos) / (camMag * pMag);
-
-                    let alpha = 1.0;
-                    // проверка условия
-                    if (dot < horizonCos) {
-                        alpha = 0.0;
-                    } else if (dot < fadeStartCos && cosRange > 0.0001) {
-                        alpha = Math.max(0.0, Math.min(1.0, (dot - horizonCos) / cosRange));
-                    }
-                    // проверка условия
-                    if (alpha < 0.02) alpha = 0.0;
-
-                    entity._currentAlpha = alpha;
                 }
 
-                // 2 кластеры станций
+                // анимация кластеров
                 clusterSet.forEach(bb => {
-                    // проверка условия
                     if (!bb.show) return;
-                    const pPos = bb.position;
-                    // проверка условия
-                    if (!pPos) return;
-
-                    const pMag = Cesium.Cartesian3.magnitude(pPos);
-                    const dot = Cesium.Cartesian3.dot(cameraPos, pPos) / (camMag * pMag);
-
-                    let alpha = 1.0;
-                    // проверка условия
-                    if (dot < horizonCos) {
-                        alpha = 0.0;
-                    } else if (dot < fadeStartCos && cosRange > 0.0001) {
-                        alpha = Math.max(0.0, Math.min(1.0, (dot - horizonCos) / cosRange));
-                    }
-                    // проверка условия
-                    if (alpha < 0.02) alpha = 0.0;
-
-                    // проверка условия
-                    if (!bb.color || bb.color.alpha !== alpha) {
-                        bb.color = new Cesium.Color(1, 1, 1, alpha);
-                    }
-
-                    // ускоренная анимация появления кластера
                     if (bb._currentScale !== undefined && bb._currentScale < 1.0) {
-                        bb._currentScale += 0.20;
-                        // проверка условия
+                        bb._currentScale += 0.25;
                         if (bb._currentScale > 1.0) bb._currentScale = 1.0;
                         bb.scale = bb._currentScale;
                     }
@@ -248,7 +174,7 @@
         btnAqi.style.width = '30px'; btnAqi.style.height = '30px';
         btnAqi.style.padding = '0'; btnAqi.style.display = 'flex';
         btnAqi.style.justifyContent = 'center'; btnAqi.style.alignItems = 'center';
-        btnAqi.title = 'Станции AQI — весь мир (Вкл/Выкл)';
+        btnAqi.title = 'Станции качества воздуха (AQI)';
 
         const iconAqi = document.createElement('img');
         iconAqi.src = 'Sprites/Icons/AirQuality.png';
@@ -466,7 +392,18 @@
         // объявление функции
         function escapeHtml(s) {
             // возврат результата
-            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+
+        // объявление функции
+        function isSafeUrl(url) {
+            // проверяет что url начинается с http или https для защиты от xss
+            try {
+                const parsed = new URL(url);
+                return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+            } catch (_e) {
+                return false;
+            }
         }
 
         // объявление функции
@@ -509,7 +446,7 @@
                 // проверка условия
                 if (st?.station?.time) desc += `Обновлено: ${escapeHtml(st.station.time)}<br>`;
                 // проверка условия
-                if (st?.station?.url) desc += `<a href="${escapeHtml(st.station.url)}" target="_blank" style="color:#00ffcc;">Источник</a>`;
+                if (st?.station?.url && isSafeUrl(st.station.url)) desc += `<a href="${escapeHtml(st.station.url)}" target="_blank" rel="noopener noreferrer" style="color:#00ffcc;">Источник</a>`;
                 desc += `</div>`;
 
                 const position3d = Cesium.Cartesian3.fromDegrees(lon, lat);
@@ -527,31 +464,21 @@
                         scale: new Cesium.CallbackProperty(function() {
                             // возврат результата
                             return entity._currentScale !== undefined ? entity._currentScale : 1.0;
-                        }, false),
-                        color: new Cesium.CallbackProperty(function() {
-                            // возврат результата
-                            return getAlphaColor(entity._currentAlpha !== undefined ? entity._currentAlpha : 1.0);
                         }, false)
                     },
                     label: {
                         text: labelText,
-                        font: 'bold 16px sans-serif',
-                        fillColor: new Cesium.CallbackProperty(function() {
-                            // возврат результата
-                            return getAlphaColor(entity._currentAlpha !== undefined ? entity._currentAlpha : 1.0);
-                        }, false),
+                        font: 'bold 14px sans-serif',
+                        fillColor: Cesium.Color.WHITE,
                         style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                        outlineColor: new Cesium.CallbackProperty(function() {
-                            // возврат результата
-                            return getAlphaOutline(entity._currentAlpha !== undefined ? entity._currentAlpha : 1.0);
-                        }, false),
-                        outlineWidth: 5,
+                        outlineColor: Cesium.Color.BLACK,
+                        outlineWidth: 4,
                         verticalOrigin: Cesium.VerticalOrigin.CENTER,
                         horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
                         pixelOffset: new Cesium.Cartesian2(24, 0),
                         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                         disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                        translucencyByDistance: new Cesium.NearFarScalar(1500000, 1.0, 3000000, 0.0),
+                        translucencyByDistance: new Cesium.NearFarScalar(500000, 1.0, 2000000, 0.0),
                         showBackground: false 
                     },
                     description: desc

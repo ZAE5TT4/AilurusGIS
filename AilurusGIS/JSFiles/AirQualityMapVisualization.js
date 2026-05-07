@@ -1,7 +1,6 @@
 /* * * глобальная тепловая карта качества воздуха (aqi) * работает через openmeteo air quality api * @param {cesiumviewer} viewer */
 // объявление функции
 async function initAirQualityMapVisualization(viewer) {
-    console.log('AirQualityMap: init AQI heatmap...');
     localStorage.removeItem('cesium_aqi_heatmap_cache_v3');
 
     let aqiHeatmapLayer = null;
@@ -72,7 +71,7 @@ async function initAirQualityMapVisualization(viewer) {
     // кнопка теперь доступна сразу!
     btnAqiMap.style.opacity = '1.0';
     btnAqiMap.style.pointerEvents = 'auto';
-    btnAqiMap.title = 'Карта качества воздуха (Вкл/Выкл)';
+    btnAqiMap.title = 'Карта качества воздуха';
 
     const iconAqiMap = document.createElement('img');
     iconAqiMap.src = 'Sprites/Icons/AirQualityMap.png';

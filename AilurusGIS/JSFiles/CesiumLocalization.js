@@ -1,8 +1,6 @@
 /* * * умный скрипт мультиязычности и локализации (глубокая безотказная версия) * работает двунаправленно напрямую внедряется в knockout viewmodels cesium * полностью переписано для поддержки динамических property и mutationobserver * @param {cesiumviewer} viewer */
 // объявление функции
 function localizeCesiumUI(viewer) {
-    console.log('CesiumLocalization: Активация глубокого автопереводчика интерфейса...');
-
     let currentLang = localStorage.getItem('ailurus_lang') || 'ru';
 
     // экспортируем глобально чтобы другие скрипты могли вызывать вручную если нужно
@@ -132,25 +130,25 @@ function localizeCesiumUI(viewer) {
         { ru: 'Батиметрия (Рельеф морского дна)', en: 'Bathymetry (Seafloor Relief)', kz: 'Батиметрия (Теңіз түбі бедері)' },
         { ru: 'Батиметрия (Вкл)', en: 'Bathymetry (On)', kz: 'Батиметрия (Қосулы)' },
         { ru: 'Батиметрия (Выкл)', en: 'Bathymetry (Off)', kz: 'Батиметрия (Өшірулі)' },
-        { ru: 'Тектонические плиты и разломы', en: 'Tectonic Plates and Faults', kz: 'Тектоникалық плиталар мен жарықтар' },
-        { ru: 'Землетрясения онлайн (За последние 7 дней)', en: 'Live Earthquakes (Last 7 Days)', kz: 'Жер сілкіністері (Соңғы 7 күн)' },
-        { ru: 'Радар осадков онлайн', en: 'Live Precipitation Radar', kz: 'Жауын-шашын радары' },
-        { ru: 'Все активные спутники', en: 'All Active Satellites', kz: 'Барлық белсенді жерсеріктер' },
-        { ru: 'Starlink спутники', en: 'Starlink Satellites', kz: 'Starlink жерсеріктері' },
-        { ru: 'Терминатор: День и Ночь', en: 'Terminator: Day and Night', kz: 'Терминатор: Күн мен Түн' },
-        { ru: '3D Здания (OSM Buildings)', en: '3D Buildings (OSM)', kz: '3D Ғимараттар (OSM)' },
-        { ru: 'База Natural Earth (Реки)', en: 'Natural Earth DB (Rivers)', kz: 'Natural Earth базасы (Өзендер)' },
-        { ru: 'Мои закладки (POIs)', en: 'My Bookmarks (POIs)', kz: 'Менің бетбелгілерім (POIs)' },
-        { ru: 'Пользовательские границы (Вкл/Выкл)', en: 'Custom Borders (On/Off)', kz: 'Пайдаланушы шекаралары (Қосу/Өшіру)' },
-        { ru: 'Пользовательские границы (Вкл)', en: 'Custom Borders (On)', kz: 'Пайдаланушы шекаралары (Қосулы)' },
-        { ru: 'Пользовательские границы (Выкл)', en: 'Custom Borders (Off)', kz: 'Пайдаланушы шекаралары (Өшірулі)' },
-        { ru: 'Границы стран SHP (Вкл/Выкл)', en: 'SHP Country Borders (On/Off)', kz: 'SHP Ел шекаралары (Қосу/Өшіру)' },
-        { ru: 'Границы стран SHP (Вкл)', en: 'SHP Country Borders (On)', kz: 'SHP Ел шекаралары (Қосулы)' },
-        { ru: 'Границы стран SHP (Выкл)', en: 'SHP Country Borders (Off)', kz: 'SHP Ел шекаралары (Өшірулі)' },
-        { ru: 'Станции AQI — весь мир (Вкл/Выкл)', en: 'AQI Stations - World (On/Off)', kz: 'AQI станциялары — Әлем (Қосу/Өшіру)' },
-        { ru: 'Тепловая карта (Вкл/Выкл)', en: 'Heatmap (On/Off)', kz: 'Жылу картасы (Қосу/Өшіру)' },
-        { ru: 'Карта качества воздуха (Вкл/Выкл)', en: 'Air Quality Map (On/Off)', kz: 'Ауа сапасының картасы (Қосу/Өшіру)' },
-        { ru: 'Ветер (Вкл/Выкл)', en: 'Wind (On/Off)', kz: 'Жел (Қосу/Өшіру)' },
+        { ru: 'Тектонические плиты', en: 'Tectonic Plates', kz: 'Тектоникалық плиталар' },
+        { ru: 'Землетрясения (за 7 дней)', en: 'Earthquakes (Last 7 Days)', kz: 'Жер сілкіністері (7 күн)' },
+        { ru: 'Радар осадков', en: 'Precipitation Radar', kz: 'Жауын-шашын радары' },
+        { ru: 'Спутники (все активные)', en: 'Satellites (All Active)', kz: 'Жерсеріктер (барлық белсенді)' },
+        { ru: 'Спутники Starlink', en: 'Starlink Satellites', kz: 'Starlink жерсеріктері' },
+        { ru: 'День и ночь', en: 'Day and Night', kz: 'Күн мен түн' },
+        { ru: '3D Здания', en: '3D Buildings', kz: '3D Ғимараттар' },
+        { ru: 'Реки мира', en: 'World Rivers', kz: 'Әлем өзендері' },
+        { ru: 'Закладки на карте', en: 'Map Bookmarks', kz: 'Картадағы бетбелгілер' },
+        { ru: 'Границы стран (KML)', en: 'Country Borders (KML)', kz: 'Ел шекаралары (KML)' },
+        { ru: 'Границы стран KML (Вкл)', en: 'Country Borders KML (On)', kz: 'Ел шекаралары KML (Қосулы)' },
+        { ru: 'Границы стран KML (Выкл)', en: 'Country Borders KML (Off)', kz: 'Ел шекаралары KML (Өшірулі)' },
+        { ru: 'Границы стран (SHP)', en: 'Country Borders (SHP)', kz: 'Ел шекаралары (SHP)' },
+        { ru: 'Границы стран SHP (Вкл)', en: 'Country Borders SHP (On)', kz: 'Ел шекаралары SHP (Қосулы)' },
+        { ru: 'Границы стран SHP (Выкл)', en: 'Country Borders SHP (Off)', kz: 'Ел шекаралары SHP (Өшірулі)' },
+        { ru: 'Станции качества воздуха (AQI)', en: 'Air Quality Stations (AQI)', kz: 'Ауа сапасы станциялары (AQI)' },
+        { ru: 'Тепловая карта температур', en: 'Temperature Heatmap', kz: 'Температура жылу картасы' },
+        { ru: 'Карта качества воздуха', en: 'Air Quality Map', kz: 'Ауа сапасының картасы' },
+        { ru: 'Анимация ветра', en: 'Wind Animation', kz: 'Жел анимациясы' },
         { ru: 'Музыка ВКЛ', en: 'Music ON', kz: 'Музыка ҚОСУЛЫ' },
         { ru: 'Музыка ВЫКЛ', en: 'Music OFF', kz: 'Музыка ӨШІРУЛІ' },
         { ru: 'Выбор языка / Language', en: 'Language Selection', kz: 'Тілді таңдау' },

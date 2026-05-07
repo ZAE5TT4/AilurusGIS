@@ -1,7 +1,6 @@
-﻿/* * * глобальная тепловая карта и умный поиск погоды по городам * экономит запросы к api с помощью localstorage и добавляет интерфейс * теперь с поддержкой динамического поиска городов через серверную бд sqlite * @param {cesiumviewer} viewer */
+/* * * глобальная тепловая карта и умный поиск погоды по городам * экономит запросы к api с помощью localstorage и добавляет интерфейс * теперь с поддержкой динамического поиска городов через серверную бд sqlite * @param {cesiumviewer} viewer */
 // объявление функции
 async function initWeatherVisualization(viewer) {
-    console.log('WeatherVisualization: Инициализация интерфейса и тепловой карты...');
 
     let heatmapLayer = null;
     let selectedCityEntity = null; // Текущая отображаемая точка города
@@ -298,7 +297,7 @@ async function initWeatherVisualization(viewer) {
     // сразу активна
     btnHeatmap.style.opacity = '1.0';
     btnHeatmap.style.pointerEvents = 'auto';
-    btnHeatmap.title = 'Тепловая карта (Вкл/Выкл)';
+    btnHeatmap.title = 'Тепловая карта температур';
 
     const iconHeatmap = document.createElement('img');
     iconHeatmap.src = 'Sprites/Icons/HeatMap.png';
@@ -318,7 +317,7 @@ async function initWeatherVisualization(viewer) {
     btnWind.style.alignItems = 'center';
     btnWind.style.opacity = '1.0';
     btnWind.style.pointerEvents = 'auto';
-    btnWind.title = 'Ветер (Вкл/Выкл)';
+    btnWind.title = 'Анимация ветра';
 
     const iconWind = document.createElement('img');
     iconWind.src = 'Sprites/Icons/Wind.png';
@@ -415,7 +414,7 @@ async function initWeatherVisualization(viewer) {
                 return;
             }
 
-            btnWind.title = 'Ветер (Вкл/Выкл)';
+            btnWind.title = 'Анимация ветра';
         }
 
         const isOn = windFlowController.toggle();
@@ -576,7 +575,6 @@ async function initWeatherVisualization(viewer) {
         
         // если в бд нет координат получаем их на лету через бесплатный геокодер openmeteo
         if (city.lat === null || city.lon === null || city.lat === undefined || city.lon === undefined) {
-            console.log(`Координаты для ${city.name} отсутствуют в БД. Запрашиваем через Geocoding API...`);
             // начало блока перехвата ошибок
             try {
                 // ищем координаты города по его имени через openmeteo geocoding api
@@ -771,7 +769,6 @@ async function initWeatherVisualization(viewer) {
                 results = readHeatmapCache(gridLocations.length, false);
                 // проверка условия
                 if (results.length > 0) {
-                    console.log('Тепловая карта загружена из кэша (API сэкономлено)');
                 }
 
                 // проверка условия

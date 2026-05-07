@@ -23,7 +23,7 @@
         btn.className = 'cesium-button cesium-toolbar-button';
         btn.style.width = '30px'; btn.style.height = '30px'; btn.style.padding = '0';
         btn.style.display = 'flex'; btn.style.justifyContent = 'center'; btn.style.alignItems = 'center';
-        btn.title = 'Землетрясения онлайн (За последние 7 дней)';
+        btn.title = 'Землетрясения (за 7 дней)';
 
         const icon = document.createElement('img');
         icon.src = 'Sprites/Icons/Earthquakes.png';

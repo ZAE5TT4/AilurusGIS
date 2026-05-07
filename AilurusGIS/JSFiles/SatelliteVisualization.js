@@ -27,7 +27,7 @@
         btnAll.className = 'cesium-button cesium-toolbar-button';
         btnAll.style.width = '30px'; btnAll.style.height = '30px'; btnAll.style.padding = '0';
         btnAll.style.display = 'flex'; btnAll.style.justifyContent = 'center'; btnAll.style.alignItems = 'center';
-        btnAll.title = 'Все активные спутники';
+        btnAll.title = 'Спутники (все активные)';
 
         const iconAll = document.createElement('img');
         iconAll.src = 'Sprites/Icons/Satellite.png';
@@ -40,7 +40,7 @@
         btnStarlink.className = 'cesium-button cesium-toolbar-button';
         btnStarlink.style.width = '30px'; btnStarlink.style.height = '30px'; btnStarlink.style.padding = '0';
         btnStarlink.style.display = 'flex'; btnStarlink.style.justifyContent = 'center'; btnStarlink.style.alignItems = 'center';
-        btnStarlink.title = 'Starlink спутники';
+        btnStarlink.title = 'Спутники Starlink';
 
         const iconStarlink = document.createElement('img');
         iconStarlink.src = 'Sprites/Icons/Satellite.png';
