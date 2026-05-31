@@ -390,7 +390,6 @@ if __name__ == "__main__":
     print(" Сервер AilurusGIS запущен!")
     print(" Лендинг: http://localhost:50010/")
     print(" Карта:   http://localhost:50010/map")
-    print(" Новая БД Аналитики: DB/analytics_v2.db")
     print(" Статистика: http://localhost:50010/api/analytics/stats")
     print("=====================================================")
     app.run(host="0.0.0.0", port=50010, debug=False, use_reloader=False, threaded=True)
