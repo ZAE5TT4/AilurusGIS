@@ -262,6 +262,14 @@
                     viewer.imageryLayers.remove(nightLayer);
                     nightLayer = null;
                 }
+                // восстанавливаем освещение и солнце если день/ночь панель не активна
+                // (DayNightVisualization сам управляет этими свойствами когда активен)
+                const dnPanel = document.getElementById('dayNightPanel');
+                const dnIsActive = dnPanel && dnPanel.style.display !== 'none';
+                if (!dnIsActive) {
+                    viewer.scene.globe.enableLighting = false;
+                    viewer.scene.sun.show = false;
+                }
             }
         }
 
@@ -272,9 +280,15 @@
             // проверка условия
             if (!nightLayer) {
                 enableDarkMode();
+                // включаем освещение чтобы Cesium знал где день и где ночь
+                viewer.scene.globe.enableLighting = true;
+                viewer.scene.sun.show = true;
                 const provider = await Cesium.IonImageryProvider.fromAssetId(3812);
                 nightLayer = viewer.imageryLayers.addImageryProvider(provider);
-                nightLayer.alpha = 0.8;
+                // показываем ночные тайлы ТОЛЬКО на тёмной стороне, на дневной — прозрачные
+                nightLayer.dayAlpha = 0.0;
+                nightLayer.nightAlpha = 0.8;
+                nightLayer.alpha = 1.0;
             }
 
             const tleData = await fetchTLE(group);

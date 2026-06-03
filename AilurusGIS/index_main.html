@@ -802,9 +802,12 @@
             cameraController.enableLook = false;
 
             // исправление скролла
+            // preventDefault() блокирует обработку события внутри Cesium (zoom-расчёты)
+            // stopPropagation() предотвращает всплытие к другим обработчикам
             const canvas = viewerLanding.scene.canvas;
 
             canvas.addEventListener('wheel', function(e) {
+                e.preventDefault();
                 e.stopPropagation();
                 let delta = e.deltaY;
                 if (e.deltaMode === 1) delta *= 32;
@@ -845,7 +848,22 @@
             // медленно вращает планету для живого фона
             // на мобильных ещё медленнее меньше нагрузка
             const rotateSpeed = isMobile ? 0.0005 : 0.001;
+
+            // флаг видимости hero-секции — если глобус не виден, останавливаем
+            // рендер-цикл Cesium чтобы он не нагружал GPU при скролле
+            let heroVisible = true;
+            const heroSection = document.getElementById('about');
+            if ('IntersectionObserver' in window && heroSection) {
+                const observer = new IntersectionObserver(function(entries) {
+                    heroVisible = entries[0].isIntersecting;
+                    // приостанавливаем/возобновляем рендер Cesium
+                    viewerLanding.useDefaultRenderLoop = heroVisible;
+                }, { threshold: 0.05 });
+                observer.observe(heroSection);
+            }
+
             viewerLanding.clock.onTick.addEventListener(function() {
+                if (!heroVisible) return; // пропускает обновление камеры когда секция не видна
                 viewerLanding.scene.camera.rotate(Cesium.Cartesian3.UNIT_Z, rotateSpeed);
             });
 

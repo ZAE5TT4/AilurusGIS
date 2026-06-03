@@ -67,6 +67,7 @@
         let nightLayer = null;
         let originalTime = null;
         let origLighting = null;
+        let ownNightLayer = false; // true если мы сами создали слой, false если переиспользовали от спутников
 
         const timeSlider = document.getElementById('timeSlider');
         const timeVal = document.getElementById('timeVal');
@@ -87,6 +88,17 @@
             viewer.clock.multiplier = e.target.checked ? 3600 : 1;
         });
 
+        // ищет уже существующий ночной слой (asset 3812) добавленный SatelliteVisualization
+        function findExistingNightLayer() {
+            for (let i = 0; i < viewer.imageryLayers.length; i++) {
+                const layer = viewer.imageryLayers.get(i);
+                if (layer && layer.imageryProvider && layer.imageryProvider._assetId === 3812) {
+                    return layer;
+                }
+            }
+            return null;
+        }
+
         btn.addEventListener('click', async () => {
             isActive = !isActive;
             
@@ -99,15 +111,23 @@
 
                 originalTime = viewer.clock.currentTime.clone();
                 
-                const provider = await Cesium.IonImageryProvider.fromAssetId(3812);
-                nightLayer = viewer.imageryLayers.addImageryProvider(provider);
-                nightLayer.dayAlpha = 0.0;
-                nightLayer.nightAlpha = 1.0;
-                // проверка условия
-                if (nightLayer.hasOwnProperty('twilightAlpha') || 'twilightAlpha' in nightLayer) {
-                    nightLayer.twilightAlpha = 0.0;
+                // проверяем есть ли уже ночной слой от спутников
+                const existing = findExistingNightLayer();
+                if (existing) {
+                    // переиспользуем слой спутников, настраиваем правильные альфы
+                    nightLayer = existing;
+                    nightLayer.dayAlpha = 0.0;
+                    nightLayer.nightAlpha = 1.0;
+                    nightLayer.alpha = 1.0;
+                    ownNightLayer = false;
+                } else {
+                    const provider = await Cesium.IonImageryProvider.fromAssetId(3812);
+                    nightLayer = viewer.imageryLayers.addImageryProvider(provider);
+                    nightLayer.dayAlpha = 0.0;
+                    nightLayer.nightAlpha = 1.0;
+                    nightLayer.alpha = 1.0;
+                    ownNightLayer = true;
                 }
-                nightLayer.alpha = 1.0;
 
                 btn.style.backgroundColor = 'rgba(38, 84, 121, 1)';
                 timePanel.style.display = 'flex';
@@ -125,8 +145,17 @@
 
                 // проверка условия
                 if (nightLayer) {
-                    viewer.imageryLayers.remove(nightLayer);
+                    if (ownNightLayer) {
+                        // удаляем слой только если мы его создали
+                        viewer.imageryLayers.remove(nightLayer);
+                    } else {
+                        // возвращаем слой спутников к его исходным настройкам
+                        nightLayer.dayAlpha = 0.0;
+                        nightLayer.nightAlpha = 0.8;
+                        nightLayer.alpha = 1.0;
+                    }
                     nightLayer = null;
+                    ownNightLayer = false;
                 }
                 
                 btn.style.backgroundColor = '';
