@@ -386,10 +386,19 @@ def after_request(response):
 
 # проверка условия
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 50010))
+
     print("=====================================================")
-    print(" Сервер AilurusGIS запущен!")
-    print(" Лендинг: http://localhost:50010/")
-    print(" Карта:   http://localhost:50010/map")
-    print(" Статистика: http://localhost:50010/api/analytics/stats")
+    print(f" Сервер AilurusGIS запущен на порту {port}!")
+    print(f" Лендинг: http://localhost:{port}/")
+    print(f" Карта:   http://localhost:{port}/map")
+    print(f" Статистика: http://localhost:{port}/api/analytics/stats")
     print("=====================================================")
-    app.run(host="0.0.0.0", port=50010, debug=False, use_reloader=False, threaded=True)
+
+    app.run(
+        host="0.0.0.0",
+        port=port,
+        debug=False,
+        use_reloader=False,
+        threaded=True
+    )
