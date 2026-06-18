@@ -9,20 +9,9 @@ function json(data, status = 200) {
   });
 }
 
-async function serveAsset(env, request, pathname) {
-  const url = new URL(request.url);
-  url.pathname = pathname;
-  url.search = "";
-  return env.ASSETS.fetch(new Request(url.toString(), request));
-}
-
-async function proxyOpenMeteo(request, targetBase) {
-  const sourceUrl = new URL(request.url);
-  const targetUrl = new URL(targetBase);
-  targetUrl.search = sourceUrl.search;
-
-  const response = await fetch(targetUrl.toString());
+function withCors(response) {
   const headers = new Headers(response.headers);
+
   headers.set("Access-Control-Allow-Origin", "*");
   headers.set("X-Content-Type-Options", "nosniff");
 
@@ -33,13 +22,33 @@ async function proxyOpenMeteo(request, targetBase) {
   });
 }
 
+async function proxyOpenMeteo(request, targetBase) {
+  const sourceUrl = new URL(request.url);
+  const targetUrl = new URL(targetBase);
+
+  targetUrl.search = sourceUrl.search;
+
+  try {
+    const response = await fetch(targetUrl.toString(), {
+      headers: {
+        "User-Agent": "AilurusGIS/1.0"
+      }
+    });
+
+    return withCors(response);
+  } catch (error) {
+    return json({
+      error: true,
+      reason: String(error)
+    }, 502);
+  }
+}
+
 async function proxyAqi(request, env, type) {
   const url = new URL(request.url);
-  const token = url.searchParams.get("token") || env.AQICN_API_TOKEN;
 
-  if (!token) {
-    return json({ status: "error", data: "AQICN_API_TOKEN is not configured" }, 500);
-  }
+  const defaultToken = "68f7e90d5c4016cf4a7e1ebc8b685acf315a246d";
+  const token = url.searchParams.get("token") || env.AQICN_API_TOKEN || defaultToken;
 
   let targetUrl;
 
@@ -48,7 +57,10 @@ async function proxyAqi(request, env, type) {
     const lon = url.searchParams.get("lon");
 
     if (!lat || !lon) {
-      return json({ status: "error", data: "lat and lon are required" }, 400);
+      return json({
+        status: "error",
+        data: "lat and lon are required"
+      }, 400);
     }
 
     targetUrl = new URL(`https://api.waqi.info/feed/geo:${lat};${lon}/`);
@@ -60,31 +72,41 @@ async function proxyAqi(request, env, type) {
     const lonMax = url.searchParams.get("lonMax");
 
     if (!latMin || !lonMin || !latMax || !lonMax) {
-      return json({ status: "error", data: "latMin, lonMin, latMax, lonMax are required" }, 400);
+      return json({
+        status: "error",
+        data: "latMin, lonMin, latMax, lonMax are required"
+      }, 400);
     }
 
     targetUrl = new URL("https://api.waqi.info/map/bounds/");
     targetUrl.searchParams.set("latlng", `${latMin},${lonMin},${latMax},${lonMax}`);
     targetUrl.searchParams.set("token", token);
   } else {
-    return json({ status: "error", data: "Unknown AQI route" }, 404);
+    return json({
+      status: "error",
+      data: "Unknown AQI route"
+    }, 404);
   }
 
-  const response = await fetch(targetUrl.toString());
-  const headers = new Headers(response.headers);
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("X-Content-Type-Options", "nosniff");
+  try {
+    const response = await fetch(targetUrl.toString(), {
+      headers: {
+        "User-Agent": "AilurusGIS/1.0"
+      }
+    });
 
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers
-  });
+    return withCors(response);
+  } catch (error) {
+    return json({
+      status: "error",
+      data: String(error)
+    }, 502);
+  }
 }
 
 async function proxyTle(request, ctx) {
   const url = new URL(request.url);
-  const group = (url.searchParams.get("group") || "active").toLowerCase();
+  const group = (url.searchParams.get("group") || "active").trim().toLowerCase();
 
   const allowedGroups = new Set([
     "active",
@@ -97,58 +119,124 @@ async function proxyTle(request, ctx) {
   ]);
 
   if (!allowedGroups.has(group)) {
-    return json({ error: `Group '${group}' not allowed` }, 400);
+    return json({
+      error: `Group '${group}' not allowed`
+    }, 400);
   }
 
   const targetUrl = `https://celestrak.org/NORAD/elements/gp.php?GROUP=${encodeURIComponent(group)}&FORMAT=tle`;
+
   const cache = caches.default;
-  const cacheRequest = new Request(targetUrl);
-
-  const cached = await cache.match(cacheRequest);
-  if (cached) {
-    return cached;
-  }
-
-  const response = await fetch(targetUrl);
-  const headers = new Headers(response.headers);
-  headers.set("Content-Type", "text/plain; charset=utf-8");
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Cache-Control", "public, max-age=21600");
-
-  const finalResponse = new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers
+  const cacheRequest = new Request(targetUrl, {
+    method: "GET"
   });
 
-  ctx.waitUntil(cache.put(cacheRequest, finalResponse.clone()));
-  return finalResponse;
+  const cached = await cache.match(cacheRequest);
+
+  if (cached) {
+    const cachedHeaders = new Headers(cached.headers);
+    cachedHeaders.set("Access-Control-Allow-Origin", "*");
+    cachedHeaders.set("X-Proxy-Cache", "HIT");
+
+    return new Response(cached.body, {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers: cachedHeaders
+    });
+  }
+
+  try {
+    const response = await fetch(targetUrl, {
+      headers: {
+        "User-Agent": "AilurusGIS/1.0"
+      }
+    });
+
+    const headers = new Headers(response.headers);
+    headers.set("Content-Type", "text/plain; charset=utf-8");
+    headers.set("Access-Control-Allow-Origin", "*");
+    headers.set("Cache-Control", "public, max-age=21600");
+    headers.set("X-Proxy-Cache", "MISS");
+
+    const finalResponse = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+
+    if (response.ok) {
+      ctx.waitUntil(cache.put(cacheRequest, finalResponse.clone()));
+    }
+
+    return finalResponse;
+  } catch (error) {
+    return json({
+      error: String(error)
+    }, 502);
+  }
 }
 
 async function proxySatelliteJs(ctx) {
   const targetUrl = "https://cdnjs.cloudflare.com/ajax/libs/satellite.js/4.0.0/satellite.min.js";
+
   const cache = caches.default;
-  const cacheRequest = new Request(targetUrl);
-
-  const cached = await cache.match(cacheRequest);
-  if (cached) {
-    return cached;
-  }
-
-  const response = await fetch(targetUrl);
-  const headers = new Headers(response.headers);
-  headers.set("Content-Type", "application/javascript; charset=utf-8");
-  headers.set("Access-Control-Allow-Origin", "*");
-  headers.set("Cache-Control", "public, max-age=604800");
-
-  const finalResponse = new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers
+  const cacheRequest = new Request(targetUrl, {
+    method: "GET"
   });
 
-  ctx.waitUntil(cache.put(cacheRequest, finalResponse.clone()));
-  return finalResponse;
+  const cached = await cache.match(cacheRequest);
+
+  if (cached) {
+    const cachedHeaders = new Headers(cached.headers);
+    cachedHeaders.set("Access-Control-Allow-Origin", "*");
+    cachedHeaders.set("X-Proxy-Cache", "HIT");
+
+    return new Response(cached.body, {
+      status: cached.status,
+      statusText: cached.statusText,
+      headers: cachedHeaders
+    });
+  }
+
+  try {
+    const response = await fetch(targetUrl, {
+      headers: {
+        "User-Agent": "AilurusGIS/1.0"
+      }
+    });
+
+    const headers = new Headers(response.headers);
+    headers.set("Content-Type", "application/javascript; charset=utf-8");
+    headers.set("Access-Control-Allow-Origin", "*");
+    headers.set("Cache-Control", "public, max-age=604800");
+    headers.set("X-Proxy-Cache", "MISS");
+
+    const finalResponse = new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers
+    });
+
+    if (response.ok) {
+      ctx.waitUntil(cache.put(cacheRequest, finalResponse.clone()));
+    }
+
+    return finalResponse;
+  } catch (error) {
+    return json({
+      error: String(error)
+    }, 502);
+  }
+}
+
+async function serveStaticAsset(request, env) {
+  /*
+   * Важно:
+   * Не делаем ручной redirect "/" -> "/index.html".
+   * Из-за этого как раз мог появляться ERR_TOO_MANY_REDIRECTS.
+   * Просто отдаём статику через Cloudflare Assets.
+   */
+  return env.ASSETS.fetch(request);
 }
 
 export default {
@@ -162,17 +250,10 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, X-User-Token"
+          "Access-Control-Allow-Headers": "Content-Type, X-User-Token, X-Analytics-Key",
+          "Access-Control-Max-Age": "86400"
         }
       });
-    }
-
-    if (path === "/") {
-      return serveAsset(env, request, "/index.html");
-    }
-
-    if (path === "/map") {
-      return serveAsset(env, request, "/map/index.html");
     }
 
     if (path === "/api/open-meteo/forecast") {
@@ -199,6 +280,10 @@ export default {
       return proxySatelliteJs(ctx);
     }
 
+    /*
+     * Эти Flask-эндпоинты пока не перенесены на Cloudflare Workers,
+     * потому что они завязаны на Python, SQLite или чтение SHP через pyshp.
+     */
     if (
       path.startsWith("/api/cities/") ||
       path.startsWith("/api/poi") ||
@@ -210,6 +295,6 @@ export default {
       }, 501);
     }
 
-    return env.ASSETS.fetch(request);
+    return serveStaticAsset(request, env);
   }
 };
