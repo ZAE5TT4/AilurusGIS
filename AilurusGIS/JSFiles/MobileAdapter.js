@@ -280,9 +280,10 @@
             transform: translateX(-55px) !important;
         }
 
-        /* кнопка тоггла плавный горизонтальный сдвиг при скрытии/показе тулбара */
+        /* кнопка тоггла не уезжает вправо при открытии тулбара, но следует за левой панелью города */
         #mobileToolbarToggle {
-            transition: left 0.25s ease, transform 0.25s ease !important;
+            left: var(--panel-offset, 15px) !important;
+            transition: left 0.3s ease-in-out !important;
             z-index: 3000 !important; /* гарантированно поверх всех панелей */
         }
         body.toolbar-hidden #mobileToolbarToggle {
@@ -395,7 +396,7 @@
         btn.style.cssText = `
             position: fixed;
             bottom: 80px;
-            left: 15px;
+            left: var(--panel-offset, 15px);
             z-index: 3000;
             width: 38px;
             height: 38px;
@@ -406,7 +407,7 @@
             box-shadow: 0 3px 10px rgba(0,0,0,0.4);
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
-            transition: left 0.25s ease;
+            transition: left 0.3s ease-in-out;
         `;
         document.body.appendChild(btn);
     }
@@ -443,7 +444,7 @@
         document.body.classList.add('toolbar-hidden');
         btn.innerHTML = iconPlay;
         btn.title = 'Показать инструменты';
-        btn.style.left = '15px'; // Начальная позиция — у левого края
+        btn.style.removeProperty('left'); // позицию задаёт CSS-переменная --panel-offset
 
         btn.addEventListener('click', function() {
             toolbarVisible = !toolbarVisible;
@@ -453,14 +454,10 @@
                 document.body.classList.remove('toolbar-hidden');
                 btn.innerHTML = iconMenu;
                 btn.title = 'Скрыть инструменты';
-                // сдвигаем кнопку вправо за тулбар (примерно ширина кнопок ~50px)
-                btn.style.left = '58px';
             } else {
                 document.body.classList.add('toolbar-hidden');
                 btn.innerHTML = iconPlay;
                 btn.title = 'Показать инструменты';
-                // возвращаем кнопку к левому краю
-                btn.style.left = '15px';
             }
 
             if (window.AilurusPanelManager) {

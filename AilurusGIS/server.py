@@ -292,14 +292,15 @@ def search_cities():
         # возврат результата
         return jsonify({"error": "Ошибка поиска в базе данных"}), 500
 
+@app.route("/api/borders/custom2")
 @app.route("/api/borders/kazakhstan")
 # объявление функции
-def borders_kazakhstan_geojson():
-    geojson_path = os.path.join(os.path.dirname(__file__), 'GeoData', 'Borders', 'kazakhstan.geojson')
+def borders_custom2_geojson():
+    geojson_path = os.path.join(os.path.dirname(__file__), 'GeoData', 'Borders', 'CustomBorders2.json')
     # проверка условия
     if not os.path.exists(geojson_path):
         # возврат результата (без раскрытия серверного пути клиенту)
-        return jsonify({"error": "GeoJSON файл границ Казахстана не найден на сервере"}), 404
+        return jsonify({"error": "GeoJSON файл CustomBorders2.json не найден на сервере"}), 404
     # начало блока перехвата ошибок
     try:
         with open(geojson_path, "rb") as f_geojson:
@@ -313,8 +314,8 @@ def borders_kazakhstan_geojson():
 @app.route("/api/borders/shp")
 # объявление функции
 def borders_shp():
-    # обратная совместимость: старый маршрут теперь отдаёт GeoJSON Казахстана вместо SHP
-    return borders_kazakhstan_geojson()
+    # обратная совместимость: старый маршрут теперь отдаёт CustomBorders2.json вместо SHP
+    return borders_custom2_geojson()
 
 
 CELESTRAK_TLE_BASE = "https://celestrak.org/NORAD/elements/gp.php"

@@ -49,7 +49,7 @@ function initBordersVisualization(viewer) {
     const btnBorders1 = createBorderButton('Sprites/Icons/Borders.png', 'Границы стран (KML)');
     bordersUiContainer.appendChild(btnBorders1);
 
-    const btnBorders2 = createBorderButton('Sprites/Icons/Borders2.png', 'Границы Казахстана (GeoJSON)');
+    const btnBorders2 = createBorderButton('Sprites/Icons/Borders2.png', 'Улучшенные границы стран (GeoJSON)');
     bordersUiContainer.appendChild(btnBorders2);
 
     let layerVisible1 = false;
@@ -176,7 +176,7 @@ function initBordersVisualization(viewer) {
         }
     });
 
-    // обработчик кнопки 2 (geojson казахстан)
+    // обработчик кнопки 2 (улучшенный geojson всех границ стран)
     btnBorders2.addEventListener('click', async function () {
         // проверка условия
         if (isBusy2) return;
@@ -193,11 +193,11 @@ function initBordersVisualization(viewer) {
             if (layerVisible2) {
                 // проверка условия
                 if (!dataSource2) {
-                    const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка GeoJSON границ Казахстана...') : null;
-                    btnBorders2.title = 'Загрузка GeoJSON границ Казахстана...';
+                    const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка улучшенных GeoJSON границ стран...') : null;
+                    btnBorders2.title = 'Загрузка улучшенных GeoJSON границ стран...';
                     // начало блока перехвата ошибок
                     try {
-                        dataSource2 = await Cesium.GeoJsonDataSource.load('GeoData/Borders/kazakhstan.geojson', {
+                        dataSource2 = await Cesium.GeoJsonDataSource.load('GeoData/Borders/CustomBorders2.json', {
                             stroke: Cesium.Color.WHITE,
                             fill: Cesium.Color.TRANSPARENT,
                             strokeWidth: 1.5,
@@ -212,19 +212,19 @@ function initBordersVisualization(viewer) {
                 } else {
                     dataSource2.show = true;
                 }
-                btnBorders2.title = 'Границы Казахстана GeoJSON (Вкл)';
+                btnBorders2.title = 'Улучшенные границы стран GeoJSON (Вкл)';
             } else {
                 // проверка условия
                 if (dataSource2) {
                     dataSource2.show = false;
                 }
-                btnBorders2.title = 'Границы Казахстана GeoJSON (Выкл)';
+                btnBorders2.title = 'Улучшенные границы стран GeoJSON (Выкл)';
             }
         } catch (error) {
-            console.error('Ошибка загрузки слоя GeoJSON границ Казахстана:', error);
+            console.error('Ошибка загрузки слоя улучшенных GeoJSON границ стран:', error);
             layerVisible2 = false;
             btnBorders2.style.backgroundColor = '';
-            alert('Не удалось загрузить GeoData/Borders/kazakhstan.geojson: ' + error.message);
+            alert('Не удалось загрузить GeoData/Borders/CustomBorders2.json: ' + error.message);
         } finally {
             isBusy2 = false;
             btnBorders2.style.pointerEvents = 'auto';

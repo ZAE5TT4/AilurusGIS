@@ -67,7 +67,7 @@
             display: none;
             position: fixed;
             bottom: 80px;
-            left: 15px;
+            left: var(--panel-offset, 15px);
             z-index: 2000;
             width: 38px;
             height: 38px;
@@ -75,6 +75,7 @@
             align-items: center;
             justify-content: center;
             box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+            transition: left 0.3s ease-in-out;
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -301,7 +302,7 @@
     <!-- environmentalvisualizationjs jsfiles/ визуализация станций мониторинга окружающей среды aqicn показывает реальные данные точечных датчиков по всему миру -->
     <script src="JSFiles/EnvironmentalVisualization.js" charset="utf-8"></script>
 
-    <!-- bordersvisualizationjs jsfiles/ два слоя границ стран 1 custombordersjson пользовательские geodata/borders/ 2 geojson границы казахстана geodata/borders/kazakhstangeojson -->
+    <!-- bordersvisualizationjs jsfiles/ два слоя границ стран 1 custombordersjson пользовательские geodata/borders/ 2 улучшенный geojson всех стран geodata/borders/customborders2json -->
     <script src="JSFiles/BordersVisualization.js" charset="utf-8"></script>
 
     <!-- cesiumlocalizationjs jsfiles/ локализация интерфейса cesium на русский казахский английский синхронизируется с localstorage ailurus_lang -->

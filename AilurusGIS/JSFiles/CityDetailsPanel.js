@@ -10,7 +10,7 @@ window.CityDetailsPanel = (function() {
         }
         #weatherUiContainer, #environmentUiContainer, #leftBottomControls,
         #bathymetryUiContainer, #bordersUiContainer, #dnUiContainer,
-        #eqUiContainer, #satUiContainer, #dbUiContainer {
+        #eqUiContainer, #satUiContainer, #dbUiContainer, #mobileToolbarToggle {
             left: var(--panel-offset, 15px) !important;
             transition: left 0.3s ease-in-out !important;
         }

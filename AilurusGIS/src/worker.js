@@ -230,8 +230,8 @@ async function proxySatelliteJs(ctx) {
 }
 
 
-async function serveKazakhstanBorders(request, env) {
-  const assetUrl = new URL("/GeoData/Borders/kazakhstan.geojson", request.url);
+async function serveCustomBorders2(request, env) {
+  const assetUrl = new URL("/GeoData/Borders/CustomBorders2.json", request.url);
   const response = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
 
   const headers = new Headers(response.headers);
@@ -297,8 +297,8 @@ export default {
       return proxySatelliteJs(ctx);
     }
 
-    if (path === "/api/borders/kazakhstan" || path === "/api/borders/shp") {
-      return serveKazakhstanBorders(request, env);
+    if (path === "/api/borders/custom2" || path === "/api/borders/kazakhstan" || path === "/api/borders/shp") {
+      return serveCustomBorders2(request, env);
     }
 
     /*
