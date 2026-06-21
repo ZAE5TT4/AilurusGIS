@@ -49,7 +49,7 @@ function initBordersVisualization(viewer) {
     const btnBorders1 = createBorderButton('Sprites/Icons/Borders.png', 'Границы стран (KML)');
     bordersUiContainer.appendChild(btnBorders1);
 
-    const btnBorders2 = createBorderButton('Sprites/Icons/Borders2.png', 'Улучшенные границы стран (GeoJSON)');
+    const btnBorders2 = createBorderButton('Sprites/Icons/Borders2.png', 'Улучшенные границы стран (SHP)');
     bordersUiContainer.appendChild(btnBorders2);
 
     let layerVisible1 = false;
@@ -193,8 +193,8 @@ function initBordersVisualization(viewer) {
             if (layerVisible2) {
                 // проверка условия
                 if (!dataSource2) {
-                    const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка улучшенных GeoJSON границ стран...') : null;
-                    btnBorders2.title = 'Загрузка улучшенных GeoJSON границ стран...';
+                    const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка улучшенных SHP границ стран...') : null;
+                    btnBorders2.title = 'Загрузка улучшенных SHP границ стран...';
                     // начало блока перехвата ошибок
                     try {
                         dataSource2 = await Cesium.GeoJsonDataSource.load('GeoData/Borders/CustomBorders2.json', {
@@ -212,16 +212,16 @@ function initBordersVisualization(viewer) {
                 } else {
                     dataSource2.show = true;
                 }
-                btnBorders2.title = 'Улучшенные границы стран GeoJSON (Вкл)';
+                btnBorders2.title = 'Улучшенные границы стран SHP (Вкл)';
             } else {
                 // проверка условия
                 if (dataSource2) {
                     dataSource2.show = false;
                 }
-                btnBorders2.title = 'Улучшенные границы стран GeoJSON (Выкл)';
+                btnBorders2.title = 'Улучшенные границы стран SHP (Выкл)';
             }
         } catch (error) {
-            console.error('Ошибка загрузки слоя улучшенных GeoJSON границ стран:', error);
+            console.error('Ошибка загрузки слоя улучшенных SHP границ стран:', error);
             layerVisible2 = false;
             btnBorders2.style.backgroundColor = '';
             alert('Не удалось загрузить GeoData/Borders/CustomBorders2.json: ' + error.message);

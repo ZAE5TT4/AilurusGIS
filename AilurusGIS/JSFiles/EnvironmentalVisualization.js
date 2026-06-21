@@ -1,161 +1,103 @@
 (function () {
-    /* * * aqi станции глобальное покрытие * текст появляется плавно при приближении иконки стиля "прогноз погоды" * экстремальная оптимизация: кэширование иконок и асинхронный рендеринг для устранения фризов * исправления v5: * ускорена анимация масштаба (bloomэффект) при соединении/отсоединении кластеров */
-    // объявление функции
+    /*
+     * AQI stations.
+     * Внешний вид точек и текстов сохранён как в старой версии:
+     * бело-чёрная круглая иконка + цвет AQI, подпись "AQI / категория" рядом с точкой.
+     * Оптимизация сделана без смены стиля: убраны покадровые CallbackProperty/анимации,
+     * добавлены кэш, отбор по сетке и отображение подписей только на рабочей дистанции.
+     */
     function initEnvironmentalVisualization(viewer, options) {
-        // проверка условия
         if (!viewer || typeof Cesium === 'undefined') return null;
 
+        function isMobileLike() {
+            return (window.matchMedia && window.matchMedia('(max-width: 768px)').matches) ||
+                (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+        }
+
+        const mobileMode = isMobileLike();
         const config = Object.assign({
             bounds: { latMin: -85.0, lonMin: -180.0, latMax: 85.0, lonMax: 180.0 },
-            maxStations: 5000,
-            cacheKey: 'cesium_aqi_bounds_cache_global_v2',
-            cacheMs: 1000 * 60 * 15 
+            maxStations: mobileMode ? 900 : 2200,
+            cacheKey: 'cesium_aqi_bounds_cache_global_styled_fast_v1',
+            cacheMs: 1000 * 60 * 60
         }, options || {});
+
+        config.maxStations = Math.max(250, Math.min(
+            Number(config.maxStations) || (mobileMode ? 900 : 2200),
+            mobileMode ? 1200 : 2600
+        ));
 
         const dataSource = new Cesium.CustomDataSource('AqicnStations');
         viewer.dataSources.add(dataSource);
         dataSource.show = false;
 
-        // кластеризация aqi станций
         dataSource.clustering.enabled = true;
-        dataSource.clustering.pixelRange = 60; 
-        dataSource.clustering.minimumClusterSize = 4;
+        dataSource.clustering.pixelRange = mobileMode ? 105 : 85;
+        dataSource.clustering.minimumClusterSize = mobileMode ? 3 : 4;
 
-        const _aqiClusterPinCache = {};
-        // объявление функции
-        function _getAqiClusterPin(count) {
-            // проверка условия
-            if (_aqiClusterPinCache[count]) return _aqiClusterPinCache[count];
-            
+        const aqiClusterPinCache = Object.create(null);
+        function getAqiClusterPin(count) {
+            const label = count > 999 ? '999+' : String(count);
             let color = '#009966';
-            // проверка условия
             if (count >= 100) color = '#cc0033';
             else if (count >= 50) color = '#ff9933';
             else if (count >= 20) color = '#ffde33';
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = 56; canvas.height = 56;
-            const ctx = canvas.getContext('2d');
-            const cx = 28; const cy = 28;
 
-            ctx.beginPath(); ctx.arc(cx, cy, 26, 0, 2 * Math.PI); ctx.fillStyle = '#FFFFFF'; ctx.fill();
-            ctx.beginPath(); ctx.arc(cx, cy, 22, 0, 2 * Math.PI); ctx.fillStyle = '#000000'; ctx.fill();
-            ctx.beginPath(); ctx.arc(cx, cy, 18, 0, 2 * Math.PI); ctx.fillStyle = color; ctx.fill();
-            
-            const text = count > 999 ? '999+' : String(count);
-            ctx.font = `bold ${count > 99 ? 12 : 15}px sans-serif`;
+            const key = `${label}_${color}`;
+            if (aqiClusterPinCache[key]) return aqiClusterPinCache[key];
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 56;
+            canvas.height = 56;
+            const ctx = canvas.getContext('2d');
+            const cx = 28;
+            const cy = 28;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, 26, 0, 2 * Math.PI);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx, cy, 22, 0, 2 * Math.PI);
+            ctx.fillStyle = '#000000';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx, cy, 18, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            ctx.font = `bold ${label.length > 2 ? 12 : 15}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            
             ctx.lineWidth = 3;
-            ctx.strokeStyle = '#000000'; 
-            ctx.strokeText(text, cx, cy);
-            
-            ctx.fillStyle = '#FFFFFF'; 
-            ctx.fillText(text, cx, cy);
+            ctx.strokeStyle = '#000000';
+            ctx.strokeText(label, cx, cy);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillText(label, cx, cy);
 
-            _aqiClusterPinCache[count] = canvas;
-            // возврат результата
+            aqiClusterPinCache[key] = canvas;
             return canvas;
         }
 
-        const clusterSet = new Set();
-        let frameCount = 0; 
-
         dataSource.clustering.clusterEvent.addEventListener(function (clusteredEntities, cluster) {
+            if (cluster.point) cluster.point.show = false;
             cluster.billboard.show = true;
             cluster.label.show = false;
-            const count = clusteredEntities.length;
-            cluster.billboard.image = _getAqiClusterPin(count);
+            cluster.billboard.image = getAqiClusterPin(clusteredEntities.length);
             cluster.billboard.width = 56;
             cluster.billboard.height = 56;
             cluster.billboard.verticalOrigin = Cesium.VerticalOrigin.CENTER;
             cluster.billboard.horizontalOrigin = Cesium.HorizontalOrigin.CENTER;
             cluster.billboard.disableDepthTestDistance = Number.POSITIVE_INFINITY;
             cluster.billboard.heightReference = Cesium.HeightReference.NONE;
-            
-            // проверка условия
-            if (!cluster.billboard._lastPos || !Cesium.Cartesian3.equalsEpsilon(cluster.billboard._lastPos, cluster.position, 1.0)) {
-                cluster.billboard._currentScale = 0.0;
-                cluster.billboard.scale = 0.0;
-                cluster.billboard._lastPos = Cesium.Cartesian3.clone(cluster.position);
-            }
-            
-            clusterSet.add(cluster.billboard);
-
-            clusteredEntities.forEach(e => {
-                e._lastClusteredFrame = frameCount;
-            });
+            cluster.billboard.scale = 1.0;
         });
 
         let busy = false;
         let loadedOnce = false;
         let layerVisible = false;
 
-        const colorCache = {};
-        const outlineCache = {};
-
-        // плавная анимация появления
-        const entityPositions = []; 
-        let edgeFadeHandle = null;
-
-        // объявление функции
-        function setupEdgeFade() {
-            // проверка условия
-            if (edgeFadeHandle) return; 
-            let localFrame = 0;
-            edgeFadeHandle = viewer.scene.postRender.addEventListener(function () {
-                frameCount++;
-                localFrame++;
-                // проверка условия
-                if (!layerVisible || entityPositions.length === 0) return;
-                // выполняем анимацию только каждый 3 кадр для экономии ресурсов
-                if (localFrame % 3 !== 0) return;
-
-                // анимация масштабирования новых точек
-                let allDone = true;
-                for (let i = 0; i < entityPositions.length; i++) {
-                    const item = entityPositions[i];
-                    const entity = item.entity;
-                    const isClustered = entity._lastClusteredFrame >= frameCount - 2;
-
-                    // проверка условия
-                    if (!isClustered && entity._wasClustered) {
-                        entity._currentScale = 0.0;
-                    }
-                    entity._wasClustered = isClustered;
-
-                    if (!isClustered && entity._currentScale < 1.0) {
-                        entity._currentScale += 0.25; 
-                        if (entity._currentScale > 1.0) entity._currentScale = 1.0;
-                        allDone = false;
-                    }
-                }
-
-                // анимация кластеров
-                clusterSet.forEach(bb => {
-                    if (!bb.show) return;
-                    if (bb._currentScale !== undefined && bb._currentScale < 1.0) {
-                        bb._currentScale += 0.25;
-                        if (bb._currentScale > 1.0) bb._currentScale = 1.0;
-                        bb.scale = bb._currentScale;
-                    }
-                });
-            });
-        }
-
-        // объявление функции
-        function teardownEdgeFade() {
-            // проверка условия
-            if (edgeFadeHandle) {
-                edgeFadeHandle();
-                edgeFadeHandle = null;
-            }
-        }
-        //
-
         let uiContainer = document.getElementById('environmentUiContainer');
-        // проверка условия
         if (!uiContainer) {
             uiContainer = document.createElement('div');
             uiContainer.id = 'environmentUiContainer';
@@ -171,125 +113,105 @@
 
         const btnAqi = document.createElement('button');
         btnAqi.className = 'cesium-button cesium-toolbar-button';
-        btnAqi.style.width = '30px'; btnAqi.style.height = '30px';
-        btnAqi.style.padding = '0'; btnAqi.style.display = 'flex';
-        btnAqi.style.justifyContent = 'center'; btnAqi.style.alignItems = 'center';
+        btnAqi.style.width = '30px';
+        btnAqi.style.height = '30px';
+        btnAqi.style.padding = '0';
+        btnAqi.style.display = 'flex';
+        btnAqi.style.justifyContent = 'center';
+        btnAqi.style.alignItems = 'center';
         btnAqi.title = 'Станции качества воздуха (AQI)';
 
         const iconAqi = document.createElement('img');
         iconAqi.src = 'Sprites/Icons/AirQuality.png';
-        iconAqi.style.width = '20px'; iconAqi.style.height = '20px';
+        iconAqi.style.width = '20px';
+        iconAqi.style.height = '20px';
         btnAqi.appendChild(iconAqi);
         uiContainer.appendChild(btnAqi);
 
         btnAqi.addEventListener('click', async function () {
-            // проверка условия
             if (busy) return;
-            // проверка условия
             if (!loadedOnce) {
-                const ok = await loadStations(false);
-                // возврат результата
+                await loadStations(false);
                 return;
             }
             layerVisible = !layerVisible;
             applyVisibility();
         });
 
-        // объявление функции
         function applyVisibility() {
             dataSource.show = layerVisible;
             btnAqi.style.backgroundColor = layerVisible ? 'rgba(38, 84, 121, 1)' : '';
-            // проверка условия
-            if (layerVisible) {
-                setupEdgeFade();
-            } else {
-                teardownEdgeFade();
-            }
+            viewer.scene.requestRender();
         }
 
-        // объявление функции
         function setBusyState(isBusy) {
             busy = isBusy;
             btnAqi.style.pointerEvents = isBusy ? 'none' : 'auto';
             btnAqi.style.opacity = isBusy ? '0.5' : '1.0';
         }
 
-        // объявление функции
         function readCache(key) {
-            // начало блока перехвата ошибок
             try {
                 const raw = localStorage.getItem(key);
-                // проверка условия
                 if (!raw) return null;
                 const parsed = JSON.parse(raw);
-                // проверка условия
                 if (!parsed || !Array.isArray(parsed.data)) return null;
-                // проверка условия
                 if (Date.now() - parsed.timestamp > config.cacheMs) return null;
-                // возврат результата
                 return parsed.data;
-            } catch (_e) { return null; }
+            } catch (_e) {
+                return null;
+            }
         }
 
-        // объявление функции
         function writeCache(key, data) {
-            // начало блока перехвата ошибок
             try {
                 localStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), data }));
             } catch (_e) {}
         }
 
-        // объявление функции
         async function fetchJson(url) {
             const response = await fetch(url);
             const text = await response.text();
             let payload = null;
-            // начало блока перехвата ошибок
-            try { payload = JSON.parse(text); } catch (_e) {
-                // проверка условия
+            try {
+                payload = JSON.parse(text);
+            } catch (_e) {
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
                 throw new Error('Invalid JSON');
             }
-            // проверка условия
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            // возврат результата
             return payload;
         }
 
-        // объявление функции
         async function requestBounds(bounds) {
             const token = window.AQICN_API_TOKEN || '68f7e90d5c4016cf4a7e1ebc8b685acf315a246d';
             const params = new URLSearchParams({
-                latMin: String(bounds.latMin), lonMin: String(bounds.lonMin),
-                latMax: String(bounds.latMax), lonMax: String(bounds.lonMax),
+                latMin: String(bounds.latMin),
+                lonMin: String(bounds.lonMin),
+                latMax: String(bounds.latMax),
+                lonMax: String(bounds.lonMax),
                 token
             });
-            // начало блока перехвата ошибок
+
             try {
                 const data = await fetchJson(`/api/aqi/bounds?${params}`);
-                // проверка условия
                 if (data.status !== 'ok') throw new Error('AQICN error');
-                // возврат результата
                 return data.data || [];
-            } catch (e) {
+            } catch (_e) {
                 const latlng = `${bounds.latMin},${bounds.lonMin},${bounds.latMax},${bounds.lonMax}`;
                 const direct = await fetchJson(`https://api.waqi.info/map/bounds/?latlng=${encodeURIComponent(latlng)}&token=${encodeURIComponent(token)}`);
-                // проверка условия
                 if (direct.status !== 'ok') throw new Error('AQICN direct error');
-                // возврат результата
                 return direct.data || [];
             }
         }
 
-        // объявление функции
         function splitGlobal() {
             const tiles = [];
-            const latSteps = 6, lonSteps = 8;
-            const latSize = 170 / latSteps; 
+            const latSteps = mobileMode ? 4 : 5;
+            const lonSteps = mobileMode ? 6 : 7;
+            const latSize = 170 / latSteps;
             const lonSize = 360 / lonSteps;
-            // начало цикла
             for (let i = 0; i < latSteps; i++) {
-                // начало цикла
                 for (let j = 0; j < lonSteps; j++) {
                     tiles.push({
                         latMin: -85 + i * latSize,
@@ -299,105 +221,90 @@
                     });
                 }
             }
-            // возврат результата
             return tiles;
         }
 
-        // объявление функции
         async function requestAllTiles() {
             const tiles = splitGlobal();
             const all = [];
-            const batchSize = 4;
-            // начало цикла
+            const batchSize = mobileMode ? 2 : 3;
             for (let i = 0; i < tiles.length; i += batchSize) {
                 const batch = tiles.slice(i, i + batchSize);
-                const results = await Promise.all(
-                    batch.map(tile => requestBounds(tile).catch(() => []))
-                );
-                results.forEach(r => { if (Array.isArray(r)) all.push(...r); });
-                // проверка условия
+                const results = await Promise.all(batch.map(tile => requestBounds(tile).catch(() => [])));
+                results.forEach(result => {
+                    if (Array.isArray(result)) all.push(...result);
+                });
                 if (i + batchSize < tiles.length) {
-                    await new Promise(r => setTimeout(r, 250));
+                    await new Promise(resolve => setTimeout(resolve, 180));
                 }
             }
-            // возврат результата
             return all;
         }
 
-        // объявление функции
         function parseAqi(raw) {
-            // проверка условия
             if (raw === null || raw === undefined || raw === '-') return null;
             const n = Number(raw);
-            // возврат результата
             return Number.isFinite(n) ? Math.max(0, Math.round(n)) : null;
         }
 
-        // объявление функции
         function getAqiCategory(aqi) {
-            // проверка условия
             if (aqi === null) return 'Нет данных';
-            // проверка условия
             if (aqi <= 50) return 'Хорошо';
-            // проверка условия
             if (aqi <= 100) return 'Умеренно';
-            // проверка условия
             if (aqi <= 150) return 'Вредно чувствит.';
-            // проверка условия
             if (aqi <= 200) return 'Вредно';
-            // проверка условия
             if (aqi <= 300) return 'Очень вредно';
-            // возврат результата
             return 'Опасно';
         }
 
-        // объявление функции
         function getAqiColorHex(aqi) {
-            // проверка условия
             if (aqi === null) return '#828282';
-            // проверка условия
             if (aqi <= 50) return '#009966';
-            // проверка условия
             if (aqi <= 100) return '#ffde33';
-            // проверка условия
             if (aqi <= 150) return '#ff9933';
-            // проверка условия
             if (aqi <= 200) return '#cc0033';
-            // проверка условия
             if (aqi <= 300) return '#660099';
-            // возврат результата
             return '#7e0023';
         }
 
-        const pinCache = {};
-        // объявление функции
+        const pinCache = Object.create(null);
         function getOrCreatePin(colorHex) {
-            // проверка условия
             if (pinCache[colorHex]) return pinCache[colorHex];
 
             const canvas = document.createElement('canvas');
-            canvas.width = 40; canvas.height = 40;
+            canvas.width = 40;
+            canvas.height = 40;
             const ctx = canvas.getContext('2d');
-            const cx = 20; const cy = 20;
+            const cx = 20;
+            const cy = 20;
 
-            ctx.beginPath(); ctx.arc(cx, cy, 13.5, 0, 2 * Math.PI); ctx.fillStyle = '#FFFFFF'; ctx.fill();
-            ctx.beginPath(); ctx.arc(cx, cy, 10.5, 0, 2 * Math.PI); ctx.fillStyle = '#000000'; ctx.fill();
-            ctx.beginPath(); ctx.arc(cx, cy, 8, 0, 2 * Math.PI); ctx.fillStyle = colorHex; ctx.fill();
-            
+            ctx.beginPath();
+            ctx.arc(cx, cy, 13.5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx, cy, 10.5, 0, 2 * Math.PI);
+            ctx.fillStyle = '#000000';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, 2 * Math.PI);
+            ctx.fillStyle = colorHex;
+            ctx.fill();
+
             pinCache[colorHex] = canvas;
-            // возврат результата
             return canvas;
         }
 
-        // объявление функции
         function escapeHtml(s) {
-            // возврат результата
-            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
-        // объявление функции
         function isSafeUrl(url) {
-            // проверяет что url начинается с http или https для защиты от xss
             try {
                 const parsed = new URL(url);
                 return parsed.protocol === 'http:' || parsed.protocol === 'https:';
@@ -406,147 +313,168 @@
             }
         }
 
-        // объявление функции
-        async function renderStations(stations) {
-            dataSource.entities.removeAll();
-            entityPositions.length = 0; 
-            clusterSet.clear(); 
-            // проверка условия
-            if (!Array.isArray(stations)) return;
-
-            const seen = new Set();
-            let count = 0;
-
-            dataSource.entities.suspendEvents();
-
-            // начало цикла
-            for (const st of stations) {
-                // проверка условия
-                if (count >= config.maxStations) break;
-                const lat = Number(st.lat), lon = Number(st.lon);
-                // проверка условия
-                if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
-
-                const key = st.uid ? `u:${st.uid}` : `${lat.toFixed(3)},${lon.toFixed(3)}`;
-                // проверка условия
-                if (seen.has(key)) continue;
-                seen.add(key);
-
-                const aqi = parseAqi(st.aqi);
-                const colorHex = getAqiColorHex(aqi);
-                const aqiLabel = aqi === null ? '?' : String(aqi);
-                const name = st?.station?.name || `AQI #${count + 1}`;
-                const category = getAqiCategory(aqi);
-
-                const labelText = `AQI: ${aqiLabel}\n${category}`;
-
-                let desc = `<div style="font-family:sans-serif;padding:4px;">
-                    <b>${escapeHtml(name)}</b><br>
-                    AQI: <b>${aqiLabel}</b> (${escapeHtml(category)})<br>`;
-                // проверка условия
-                if (st?.station?.time) desc += `Обновлено: ${escapeHtml(st.station.time)}<br>`;
-                // проверка условия
-                if (st?.station?.url && isSafeUrl(st.station.url)) desc += `<a href="${escapeHtml(st.station.url)}" target="_blank" rel="noopener noreferrer" style="color:#00ffcc;">Источник</a>`;
-                desc += `</div>`;
-
-                const position3d = Cesium.Cartesian3.fromDegrees(lon, lat);
-                const pMag = Cesium.Cartesian3.magnitude(position3d);
-
-                const entity = dataSource.entities.add({
-                    name,
-                    position: position3d,
-                    billboard: {
-                        image: getOrCreatePin(colorHex),
-                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
-                        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                        scale: new Cesium.CallbackProperty(function() {
-                            // возврат результата
-                            return entity._currentScale !== undefined ? entity._currentScale : 1.0;
-                        }, false)
-                    },
-                    label: {
-                        text: labelText,
-                        font: 'bold 14px sans-serif',
-                        fillColor: Cesium.Color.WHITE,
-                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                        outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 4,
-                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
-                        horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
-                        pixelOffset: new Cesium.Cartesian2(24, 0),
-                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                        translucencyByDistance: new Cesium.NearFarScalar(500000, 1.0, 2000000, 0.0),
-                        showBackground: false 
-                    },
-                    description: desc
-                });
-
-                entity._currentScale = 0.0; 
-                entity._currentAlpha = 1.0;
-                entity._wasClustered = false;
-                entity._lastClusteredFrame = -10;
-
-                entityPositions.push({ entity, position: position3d, pMag });
-                count++;
-
-                // проверка условия
-                if (count % 500 === 0) {
-                    dataSource.entities.resumeEvents();
-                    await new Promise(r => setTimeout(r, 10));
-                    dataSource.entities.suspendEvents();
-                }
-            }
-            
-            dataSource.entities.resumeEvents();
+        function stationScore(station) {
+            const aqi = parseAqi(station.aqi);
+            return aqi === null ? -1 : aqi;
         }
 
-        // объявление функции
+        function stationKey(station) {
+            const lat = Number(station.lat);
+            const lon = Number(station.lon);
+            return station.uid ? `u:${station.uid}` : `${lat.toFixed(3)},${lon.toFixed(3)}`;
+        }
+
+        function prepareStations(stations) {
+            if (!Array.isArray(stations)) return [];
+
+            const seen = new Set();
+            const deduped = [];
+            for (const station of stations) {
+                const lat = Number(station.lat);
+                const lon = Number(station.lon);
+                if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+                if (lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+
+                const key = stationKey(station);
+                if (seen.has(key)) continue;
+                seen.add(key);
+                deduped.push(station);
+            }
+
+            if (deduped.length <= config.maxStations) return deduped;
+
+            const cellSize = mobileMode ? 8 : 5;
+            const cells = new Map();
+            for (const station of deduped) {
+                const lat = Number(station.lat);
+                const lon = Number(station.lon);
+                const cellKey = `${Math.floor((lat + 90) / cellSize)}:${Math.floor((lon + 180) / cellSize)}`;
+                const current = cells.get(cellKey);
+                if (!current || stationScore(station) > stationScore(current)) {
+                    cells.set(cellKey, station);
+                }
+            }
+
+            const selected = Array.from(cells.values());
+            const selectedKeys = new Set(selected.map(stationKey));
+
+            if (selected.length < config.maxStations) {
+                deduped
+                    .slice()
+                    .sort((a, b) => stationScore(b) - stationScore(a))
+                    .some(station => {
+                        const key = stationKey(station);
+                        if (!selectedKeys.has(key)) {
+                            selected.push(station);
+                            selectedKeys.add(key);
+                        }
+                        return selected.length >= config.maxStations;
+                    });
+            }
+
+            selected.sort((a, b) => stationScore(b) - stationScore(a));
+            return selected.slice(0, config.maxStations);
+        }
+
+        async function renderStations(stations) {
+            const visibleStations = prepareStations(stations);
+            dataSource.entities.removeAll();
+            if (visibleStations.length === 0) return;
+
+            const labelMaxDistance = mobileMode ? 1200000 : 2000000;
+
+            dataSource.entities.suspendEvents();
+            try {
+                for (let i = 0; i < visibleStations.length; i++) {
+                    const st = visibleStations[i];
+                    const lat = Number(st.lat);
+                    const lon = Number(st.lon);
+                    const aqi = parseAqi(st.aqi);
+                    const colorHex = getAqiColorHex(aqi);
+                    const aqiLabel = aqi === null ? '?' : String(aqi);
+                    const name = st?.station?.name || `AQI #${i + 1}`;
+                    const category = getAqiCategory(aqi);
+                    const labelText = `AQI: ${aqiLabel}\n${category}`;
+
+                    let desc = `<div style="font-family:sans-serif;padding:4px;">
+                        <b>${escapeHtml(name)}</b><br>
+                        AQI: <b>${aqiLabel}</b> (${escapeHtml(category)})<br>`;
+                    if (st?.station?.time) desc += `Обновлено: ${escapeHtml(st.station.time)}<br>`;
+                    if (st?.station?.url && isSafeUrl(st.station.url)) {
+                        desc += `<a href="${escapeHtml(st.station.url)}" target="_blank" rel="noopener noreferrer" style="color:#00ffcc;">Источник</a>`;
+                    }
+                    desc += '</div>';
+
+                    dataSource.entities.add({
+                        name,
+                        position: Cesium.Cartesian3.fromDegrees(lon, lat, 0),
+                        billboard: {
+                            image: getOrCreatePin(colorHex),
+                            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                            horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                            scale: 1.0
+                        },
+                        label: {
+                            text: labelText,
+                            font: 'bold 14px sans-serif',
+                            fillColor: Cesium.Color.WHITE,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 4,
+                            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                            horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
+                            pixelOffset: new Cesium.Cartesian2(24, 0),
+                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                            translucencyByDistance: new Cesium.NearFarScalar(500000, 1.0, 2000000, 0.0),
+                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, labelMaxDistance),
+                            showBackground: false
+                        },
+                        description: desc
+                    });
+
+                    if (i > 0 && i % 300 === 0) {
+                        dataSource.entities.resumeEvents();
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                        dataSource.entities.suspendEvents();
+                    }
+                }
+            } finally {
+                dataSource.entities.resumeEvents();
+            }
+        }
+
         async function loadStations(forceRefresh) {
             const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка AQI (весь мир)...') : null;
             setBusyState(true);
-            
-            await new Promise(r => setTimeout(r, 50)); 
-            
-            // начало блока перехвата ошибок
+
             try {
-                // проверка условия
-                if (!forceRefresh) {
-                    const cached = readCache(config.cacheKey);
-                    // проверка условия
-                    if (cached) {
-                        await renderStations(cached);
-                        loadedOnce = true;
-                        layerVisible = true;
-                        applyVisibility();
-                        // возврат результата
-                        return true;
-                    }
+                let stations = null;
+                if (!forceRefresh) stations = readCache(config.cacheKey);
+                if (!stations) {
+                    stations = await requestAllTiles();
+                    writeCache(config.cacheKey, stations);
                 }
 
-                const stations = await requestAllTiles();
                 await renderStations(stations);
                 loadedOnce = true;
-                writeCache(config.cacheKey, stations);
                 layerVisible = true;
                 applyVisibility();
-                // возврат результата
                 return true;
             } catch (err) {
                 console.error('EnvironmentalVisualization error:', err);
                 alert(`Ошибка загрузки AQI: ${err.message}`);
-                // возврат результата
+                layerVisible = false;
+                applyVisibility();
                 return false;
             } finally {
                 setBusyState(false);
-                // проверка условия
                 if (loadId !== null && window.LoadingIndicator) window.LoadingIndicator.hide(loadId);
             }
         }
 
-        // возврат результата
         return {
             reload: () => loadStations(true),
             setEnabled: (enabled) => { layerVisible = Boolean(enabled); applyVisibility(); },
