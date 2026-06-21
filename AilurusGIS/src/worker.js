@@ -229,6 +229,23 @@ async function proxySatelliteJs(ctx) {
   }
 }
 
+
+async function serveKazakhstanBorders(request, env) {
+  const assetUrl = new URL("/GeoData/Borders/kazakhstan.geojson", request.url);
+  const response = await env.ASSETS.fetch(new Request(assetUrl.toString(), request));
+
+  const headers = new Headers(response.headers);
+  headers.set("Content-Type", "application/geo+json; charset=utf-8");
+  headers.set("Access-Control-Allow-Origin", "*");
+  headers.set("X-Content-Type-Options", "nosniff");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
 async function serveStaticAsset(request, env) {
   /*
    * Важно:
@@ -280,15 +297,18 @@ export default {
       return proxySatelliteJs(ctx);
     }
 
+    if (path === "/api/borders/kazakhstan" || path === "/api/borders/shp") {
+      return serveKazakhstanBorders(request, env);
+    }
+
     /*
      * Эти Flask-эндпоинты пока не перенесены на Cloudflare Workers,
-     * потому что они завязаны на Python, SQLite или чтение SHP через pyshp.
+     * потому что они завязаны на Python или SQLite.
      */
     if (
       path.startsWith("/api/cities/") ||
       path.startsWith("/api/poi") ||
-      path.startsWith("/api/analytics/") ||
-      path.startsWith("/api/borders/shp")
+      path.startsWith("/api/analytics/")
     ) {
       return json({
         error: "Этот Flask/SQLite/Python endpoint на Cloudflare Worker пока не перенесён."

@@ -84,6 +84,7 @@
         panel.style.gap = '10px';
         panel.style.transition = 'left 0.3s ease-in-out';
         viewer.container.appendChild(panel);
+        if (window.AilurusPanelManager) window.AilurusPanelManager.register(panel, { order: 50 });
 
         const isMobile = window.AilurusIsMobile ||
             /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||

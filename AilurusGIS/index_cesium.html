@@ -15,9 +15,22 @@
     
     <style>
         /* убирает отступы и растягивает карту на весь экран */
-        html, body, #cesiumContainer {
+        html, body {
             width: 100%;
             height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            overscroll-behavior: none;
+            background-color: #000000;
+        }
+
+        #cesiumContainer {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
             margin: 0;
             padding: 0;
             overflow: hidden;
@@ -288,7 +301,7 @@
     <!-- environmentalvisualizationjs jsfiles/ визуализация станций мониторинга окружающей среды aqicn показывает реальные данные точечных датчиков по всему миру -->
     <script src="JSFiles/EnvironmentalVisualization.js" charset="utf-8"></script>
 
-    <!-- bordersvisualizationjs jsfiles/ два слоя границ стран 1 custombordersjson пользовательские geodata/borders/ 2 shp границы через /api/borders/shp -->
+    <!-- bordersvisualizationjs jsfiles/ два слоя границ стран 1 custombordersjson пользовательские geodata/borders/ 2 geojson границы казахстана geodata/borders/kazakhstangeojson -->
     <script src="JSFiles/BordersVisualization.js" charset="utf-8"></script>
 
     <!-- cesiumlocalizationjs jsfiles/ локализация интерфейса cesium на русский казахский английский синхронизируется с localstorage ailurus_lang -->

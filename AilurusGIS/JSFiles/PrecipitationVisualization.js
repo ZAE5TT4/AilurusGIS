@@ -33,6 +33,7 @@
 
         // панель легенда осадков (сдвинута на +100px правее)
         const legendPanel = document.createElement('div');
+        legendPanel.id = 'precipitationLegendPanel';
         legendPanel.style.position = 'absolute';
         legendPanel.style.top = '15px';
         legendPanel.style.left = 'calc(var(--panel-offset, 15px) + 100px)';
@@ -65,6 +66,7 @@
             </div>
         `;
         viewer.container.appendChild(legendPanel);
+        if (window.AilurusPanelManager) window.AilurusPanelManager.register(legendPanel, { order: 20 });
 
         let isActive = false;
         let isBusy = false;

@@ -5,17 +5,31 @@ window.CityDetailsPanel = (function() {
     const syncStyles = document.createElement('style');
     syncStyles.innerHTML = `
         :root {
-            --panel-offset: 335px; /* ширина панели (320) + отступ (15) */
+            --city-sidebar-width: min(320px, calc(100vw - 38px));
+            --panel-offset: 15px;
         }
         #weatherUiContainer, #environmentUiContainer, #leftBottomControls,
         #bathymetryUiContainer, #bordersUiContainer, #dnUiContainer,
-        #eqUiContainer, #satUiContainer {
+        #eqUiContainer, #satUiContainer, #dbUiContainer {
             left: var(--panel-offset, 15px) !important;
             transition: left 0.3s ease-in-out !important;
         }
-        #mobileToolbarToggle {
-            left: var(--panel-offset, 15px) !important;
-            transition: left 0.3s ease-in-out, background 0.2s !important;
+        #cityDetailsSidebar {
+            box-sizing: border-box;
+            max-width: calc(100vw - 38px);
+            overflow: hidden;
+        }
+        @media (max-width: 768px) {
+            html, body, #cesiumContainer {
+                overflow: hidden !important;
+                overscroll-behavior: none !important;
+            }
+            #cityDetailsSidebar {
+                height: 100vh !important;
+                height: 100dvh !important;
+                max-height: 100vh !important;
+                max-height: 100dvh !important;
+            }
         }
     `;
     document.head.appendChild(syncStyles);
@@ -23,13 +37,15 @@ window.CityDetailsPanel = (function() {
     // главный контейнер боковой панели
     const panel = document.createElement('div');
     panel.id = 'cityDetailsSidebar';
-    panel.style.position = 'absolute';
+    panel.style.position = 'fixed';
     panel.style.top = '0';
     panel.style.bottom = '0';
-    panel.style.left = '0'; // Изначально открыто
-    panel.style.width = 'min(320px, calc(100vw - 30px))'; // Динамическая ширина для мобильных
-    panel.style.height = '100%'; 
-    panel.style.maxHeight = '100%'; // Адаптация под мобильные браузеры с панелями навигации
+    panel.style.left = '0'; // стартовое состояние задаётся ниже: на телефонах закрыто, на десктопе открыто
+    panel.style.width = 'var(--city-sidebar-width)'; // не шире экрана с учётом выступающей кнопки
+    panel.style.height = '100vh';
+    panel.style.height = '100dvh'; 
+    panel.style.maxHeight = '100vh';
+    panel.style.maxHeight = '100dvh'; // Адаптация под мобильные браузеры с панелями навигации
     panel.style.display = 'flex';
     panel.style.flexDirection = 'column';
     panel.style.backgroundColor = 'rgba(38, 40, 42, 0.95)'; // Темный фон в стиле Cesium
@@ -40,6 +56,8 @@ window.CityDetailsPanel = (function() {
     panel.style.transition = 'left 0.3s ease-in-out';
     panel.style.fontFamily = 'Arial, sans-serif';
     panel.style.color = '#fff'; // Белый текст по умолчанию
+    panel.style.boxSizing = 'border-box';
+    panel.style.overflow = 'hidden';
 
     // кнопка свернуть/развернуть панель
     const toggleBtn = document.createElement('div');
@@ -60,6 +78,7 @@ window.CityDetailsPanel = (function() {
     toggleBtn.style.transform = 'translateY(-50%)';
     toggleBtn.style.color = '#fff';
     toggleBtn.style.fontSize = '12px';
+    toggleBtn.style.zIndex = '1501';
     toggleBtn.innerHTML = '◀';
     panel.appendChild(toggleBtn);
 
@@ -94,8 +113,8 @@ window.CityDetailsPanel = (function() {
     panel.appendChild(contentSlot);
     document.body.appendChild(panel);
 
-    // состояние открытия
-    let isOpen = true;
+    // состояние открытия: на телефонах панель должна быть закрыта при первом открытии карты
+    let isOpen = !(window.AilurusIsMobile || window.innerWidth <= 768);
 
     // внутреннее состояние данных
     let currentCityData = null;
@@ -103,18 +122,28 @@ window.CityDetailsPanel = (function() {
 
     // объявление функции
     function updateSidebarState() {
-        const offsetHide = 'calc(-1 * min(320px, calc(100vw - 30px)))';
-        const offsetOpen = 'calc(min(320px, calc(100vw - 30px)) + 15px)';
-        
+        const offsetHide = 'calc(0px - var(--city-sidebar-width))';
+        const offsetOpen = 'calc(var(--city-sidebar-width) + 15px)';
+
         panel.style.left = isOpen ? '0' : offsetHide;
         toggleBtn.innerHTML = isOpen ? '◀' : '▶';
+        toggleBtn.title = isOpen ? 'Скрыть панель города' : 'Показать панель города';
+        panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
         document.documentElement.style.setProperty('--panel-offset', isOpen ? offsetOpen : '15px');
+
+        // после изменения отступа перестраиваем открытые всплывающие панели, чтобы они не уезжали за экран
+        if (window.AilurusPanelManager) {
+            window.AilurusPanelManager.update();
+            setTimeout(() => window.AilurusPanelManager.update(), 320);
+        }
     }
 
     toggleBtn.addEventListener('click', () => {
         isOpen = !isOpen;
         updateSidebarState();
     });
+
+    updateSidebarState();
 
     // устанавливаем стартовое состояние (пустое до выбора города)
     function showEmptyState() {
@@ -591,6 +620,9 @@ window.CityDetailsPanel = (function() {
     return {
         show: show,
         clear: clearPanel,
-        updateForDay: renderDataForDay
+        updateForDay: renderDataForDay,
+        open: function() { isOpen = true; updateSidebarState(); },
+        close: function() { isOpen = false; updateSidebarState(); },
+        isOpen: function() { return isOpen; }
     };
 })();

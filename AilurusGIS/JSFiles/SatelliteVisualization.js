@@ -59,12 +59,12 @@
         let satPrimitivesAll = null;
         let satPrimitivesStarlink = null;
         let orbitLine = null;
-        let nightLayer = null;
-        let originalBaseColor = null;
+        let nightLayer = null; // оставлено только для безопасного удаления старого ночного слоя, если он был создан до обновления
         let renderListenerAll = null;
         let renderListenerStarlink = null;
 
         const infoPanel = document.createElement('div');
+        infoPanel.id = 'satelliteInfoPanel';
         infoPanel.style.position = 'absolute';
         infoPanel.style.top = '15px';
         infoPanel.style.left = 'calc(var(--panel-offset, 15px) + 100px)';
@@ -78,6 +78,7 @@
         infoPanel.style.pointerEvents = 'none';
         infoPanel.style.transition = 'left 0.3s ease-in-out';
         viewer.container.appendChild(infoPanel);
+        if (window.AilurusPanelManager) window.AilurusPanelManager.register(infoPanel, { order: 30 });
 
         // объявление функции
         async function ensureSatelliteLib() {
@@ -242,33 +243,22 @@
         }
 
         // объявление функции
-        function enableDarkMode() {
-            originalBaseColor = viewer.scene.globe.baseColor;
-            viewer.scene.globe.baseColor = new Cesium.Color(0.01, 0.01, 0.02, 1.0);
-        }
-
-        // объявление функции
         function disableDarkModeIfNoneActive() {
-            // проверка условия
+            // спутниковые слои больше не включают терминатор день/ночь и ночные тайлы;
+            // здесь только безопасно убираем старый ночной слой, если он остался после предыдущей версии.
             if (!isActiveAll && !isActiveStarlink) {
-                // проверка условия
-                if (originalBaseColor) {
-                    viewer.scene.globe.baseColor = originalBaseColor;
-                } else {
-                    viewer.scene.globe.baseColor = Cesium.Color.WHITE;
-                }
-                // проверка условия
                 if (nightLayer) {
                     viewer.imageryLayers.remove(nightLayer);
                     nightLayer = null;
                 }
-                // восстанавливаем освещение и солнце если день/ночь панель не активна
-                // (DayNightVisualization сам управляет этими свойствами когда активен)
+
+                // не трогаем режим DayNightVisualization, если он включён пользователем отдельно
                 const dnPanel = document.getElementById('dayNightPanel');
                 const dnIsActive = dnPanel && dnPanel.style.display !== 'none';
                 if (!dnIsActive) {
                     viewer.scene.globe.enableLighting = false;
                     viewer.scene.sun.show = false;
+                    if (viewer.scene.moon) viewer.scene.moon.show = false;
                 }
             }
         }
@@ -277,19 +267,8 @@
         async function activateLayer(group, color, isBusyRef, btnRef) {
             await ensureSatelliteLib();
 
-            // проверка условия
-            if (!nightLayer) {
-                enableDarkMode();
-                // включаем освещение чтобы Cesium знал где день и где ночь
-                viewer.scene.globe.enableLighting = true;
-                viewer.scene.sun.show = true;
-                const provider = await Cesium.IonImageryProvider.fromAssetId(3812);
-                nightLayer = viewer.imageryLayers.addImageryProvider(provider);
-                // показываем ночные тайлы ТОЛЬКО на тёмной стороне, на дневной — прозрачные
-                nightLayer.dayAlpha = 0.0;
-                nightLayer.nightAlpha = 0.8;
-                nightLayer.alpha = 1.0;
-            }
+            // спутники теперь отображаются поверх обычной карты: не включаем освещение глобуса,
+            // не добавляем ночной слой и не создаём разделение планеты на день/ночь.
 
             const tleData = await fetchTLE(group);
             const parsedSats = parseTLE(tleData);

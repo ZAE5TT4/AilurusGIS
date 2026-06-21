@@ -1,6 +1,163 @@
 /* * * mobileadapterjs jsfiles/ * мобильная адаптация интерфейса ailurusgis * перестраивает боковые панели инструментов под сенсорные экраны * добавляет кнопку сворачивания тулбара и защиту от ложных кликов при свайпе * подключается после loadingindicatorjs и до любых визуализаций */
 (function () {
 
+
+    // 0 общий менеджер плавающих панелей.
+    // Он работает и на десктопе, и на телефонах: панели больше не накладываются друг на друга,
+    // а выстраиваются сверху вниз с ограничением по ширине и высоте экрана.
+    (function installFloatingPanelManager() {
+        if (window.AilurusPanelManager) return;
+
+        const entries = [];
+        let scheduled = false;
+        let panelIdCounter = 0;
+        let offsetProbe = null;
+
+        const baseTop = 15;
+        const gap = 10;
+        const minPanelHeight = 90;
+        const minPanelWidth = 160;
+
+        function ensureProbe() {
+            if (offsetProbe || !document.body) return offsetProbe;
+            offsetProbe = document.createElement('div');
+            offsetProbe.style.position = 'fixed';
+            offsetProbe.style.top = '-10000px';
+            offsetProbe.style.left = 'var(--panel-offset, 15px)';
+            offsetProbe.style.width = '0';
+            offsetProbe.style.height = '0';
+            offsetProbe.style.pointerEvents = 'none';
+            offsetProbe.style.visibility = 'hidden';
+            document.body.appendChild(offsetProbe);
+            return offsetProbe;
+        }
+
+        function getPanelOffsetPx() {
+            const probe = ensureProbe();
+            if (!probe) return 15;
+            const rect = probe.getBoundingClientRect();
+            const value = Number(rect.left);
+            return Number.isFinite(value) ? Math.max(0, value) : 15;
+        }
+
+        function isPanelVisible(panel) {
+            if (!panel || !panel.isConnected) return false;
+            const style = window.getComputedStyle(panel);
+            return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity || 1) !== 0;
+        }
+
+        function setStyleIfChanged(panel, property, value) {
+            if (panel.style[property] !== value) {
+                panel.style[property] = value;
+            }
+        }
+
+        function getNaturalPanelHeight(panel, viewportHeight) {
+            const rectHeight = Math.ceil(panel.getBoundingClientRect().height || 0);
+            const scrollHeight = Math.ceil(panel.scrollHeight || 0);
+            const height = Math.max(rectHeight, scrollHeight, minPanelHeight);
+            return Math.min(height, Math.max(minPanelHeight, viewportHeight - baseTop * 2));
+        }
+
+        function scheduleUpdate() {
+            if (scheduled) return;
+            scheduled = true;
+            window.requestAnimationFrame(updateLayout);
+        }
+
+        function updateLayout() {
+            scheduled = false;
+
+            const visible = entries
+                .filter(entry => isPanelVisible(entry.panel))
+                .sort((a, b) => (a.order || 0) - (b.order || 0));
+
+            if (!visible.length) return;
+
+            const viewportWidth = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+            const viewportHeight = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+            const offsetPx = getPanelOffsetPx();
+
+            let leftPx = offsetPx + 100;
+            let availableWidth = viewportWidth - leftPx - 12;
+
+            // На узких телефонах не даём панели уйти за правый край.
+            if (availableWidth < minPanelWidth) {
+                leftPx = Math.max(8, Math.min(offsetPx + 55, viewportWidth - minPanelWidth - 8));
+                availableWidth = viewportWidth - leftPx - 8;
+            }
+            if (availableWidth < minPanelWidth) {
+                leftPx = 8;
+                availableWidth = viewportWidth - 16;
+            }
+
+            const maxWidth = Math.max(minPanelWidth, Math.floor(availableWidth));
+            const availableHeight = Math.max(140, viewportHeight - baseTop - 12);
+            const naturalHeights = visible.map(entry => getNaturalPanelHeight(entry.panel, viewportHeight));
+            const totalNaturalHeight = naturalHeights.reduce((sum, height) => sum + height, 0) + gap * Math.max(0, visible.length - 1);
+            const compressedMaxHeight = Math.max(
+                minPanelHeight,
+                Math.floor((availableHeight - gap * Math.max(0, visible.length - 1)) / visible.length)
+            );
+
+            let topPx = baseTop;
+            visible.forEach((entry, index) => {
+                const panel = entry.panel;
+                const naturalHeight = naturalHeights[index];
+                const maxHeight = totalNaturalHeight <= availableHeight
+                    ? Math.max(minPanelHeight, viewportHeight - topPx - 12)
+                    : compressedMaxHeight;
+                const actualHeight = Math.min(naturalHeight, maxHeight);
+
+                setStyleIfChanged(panel, 'boxSizing', 'border-box');
+                setStyleIfChanged(panel, 'left', `${Math.round(leftPx)}px`);
+                setStyleIfChanged(panel, 'top', `${Math.round(topPx)}px`);
+                setStyleIfChanged(panel, 'maxWidth', `${maxWidth}px`);
+                setStyleIfChanged(panel, 'maxHeight', `${Math.max(minPanelHeight, Math.floor(maxHeight))}px`);
+                setStyleIfChanged(panel, 'overflowX', 'hidden');
+                setStyleIfChanged(panel, 'overflowY', naturalHeight > maxHeight ? 'auto' : 'visible');
+
+                topPx += actualHeight + gap;
+            });
+        }
+
+        function register(panel, options) {
+            if (!panel || entries.some(entry => entry.panel === panel)) return;
+            const opts = options || {};
+            if (!panel.id) {
+                panel.id = `ailurusFloatingPanel${++panelIdCounter}`;
+            }
+            panel.classList.add('ailurus-floating-panel');
+            panel.dataset.ailurusFloatingPanel = 'true';
+            if (!panel.style.transition || panel.style.transition.indexOf('top') === -1) {
+                panel.style.transition = 'left 0.3s ease-in-out, top 0.2s ease, max-height 0.2s ease';
+            }
+
+            const observer = new MutationObserver(scheduleUpdate);
+            observer.observe(panel, { attributes: true, attributeFilter: ['style', 'class'] });
+            entries.push({ panel, order: Number(opts.order || entries.length), observer });
+            scheduleUpdate();
+        }
+
+        function unregister(panel) {
+            const index = entries.findIndex(entry => entry.panel === panel);
+            if (index === -1) return;
+            entries[index].observer.disconnect();
+            entries.splice(index, 1);
+            scheduleUpdate();
+        }
+
+        window.addEventListener('resize', scheduleUpdate);
+        window.addEventListener('orientationchange', function () { setTimeout(scheduleUpdate, 300); });
+        document.addEventListener('DOMContentLoaded', scheduleUpdate);
+
+        window.AilurusPanelManager = {
+            register: register,
+            unregister: unregister,
+            update: scheduleUpdate
+        };
+    })();
+
     // определяет мобильное устройство по useragent и ширине экрана
     const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
@@ -25,6 +182,37 @@
     const style = document.createElement('style');
     style.id = 'ailurus-mobile-style';
     style.textContent = `
+
+        /* не даёт боковым панелям создавать скролл страницы на телефонах */
+        html {
+            overflow: hidden !important;
+            overscroll-behavior: none !important;
+        }
+        body {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            overflow: hidden !important;
+            overscroll-behavior: none !important;
+        }
+        #cesiumContainer {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            overflow: hidden !important;
+        }
+        #cityDetailsSidebar {
+            max-width: calc(100vw - 38px) !important;
+            height: 100vh !important;
+            height: 100dvh !important;
+            max-height: 100vh !important;
+            max-height: 100dvh !important;
+            box-sizing: border-box !important;
+        }
 
         /* cesium кнопки расширяет тачзону до минимально комфортного размера */
         .cesium-button,
@@ -68,7 +256,8 @@
         #dnUiContainer,
         #dbUiContainer,
         #dayNightPanel,
-        #poiPanel {
+        #poiPanel,
+        .ailurus-floating-panel {
             gap: 8px !important;
             transition: opacity 0.25s ease, transform 0.25s ease, left 0.25s ease !important;
         }
@@ -84,7 +273,8 @@
         body.toolbar-hidden #dnUiContainer,
         body.toolbar-hidden #dbUiContainer,
         body.toolbar-hidden #dayNightPanel,
-        body.toolbar-hidden #poiPanel {
+        body.toolbar-hidden #poiPanel,
+        body.toolbar-hidden .ailurus-floating-panel {
             opacity: 0 !important;
             pointer-events: none !important;
             transform: translateX(-55px) !important;
@@ -103,8 +293,8 @@
         }
 
         /* плавающие панели с данными (погода aqi батиметрия) */
-        body > div[style*="position: absolute"][style*="background"]:not(#cityDetailsSidebar):not(#cityDetailsSidebarToggle),
-        #cesiumContainer > div[style*="position: absolute"][style*="background"]:not(#cityDetailsSidebar):not(#cityDetailsSidebarToggle) {
+        body > div[style*="position: absolute"][style*="background"]:not(#cityDetailsSidebar):not(#cityDetailsSidebarToggle):not(.ailurus-floating-panel),
+        #cesiumContainer > div[style*="position: absolute"][style*="background"]:not(#cityDetailsSidebar):not(#cityDetailsSidebarToggle):not(.ailurus-floating-panel) {
             max-width: calc(100vw - 12px) !important;
             max-height: 65vh !important;
             overflow-y: auto !important;
@@ -272,6 +462,11 @@
                 // возвращаем кнопку к левому краю
                 btn.style.left = '15px';
             }
+
+            if (window.AilurusPanelManager) {
+                window.AilurusPanelManager.update();
+                setTimeout(() => window.AilurusPanelManager.update(), 260);
+            }
         });
     }
 
@@ -291,6 +486,7 @@
                 panel.style.maxWidth = (window.innerWidth - 16) + 'px';
             }
         });
+        if (window.AilurusPanelManager) window.AilurusPanelManager.update();
     }
 
     window.addEventListener('orientationchange', function() {

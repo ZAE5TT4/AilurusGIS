@@ -292,26 +292,29 @@ def search_cities():
         # возврат результата
         return jsonify({"error": "Ошибка поиска в базе данных"}), 500
 
-@app.route("/api/borders/shp")
+@app.route("/api/borders/kazakhstan")
 # объявление функции
-def borders_shp():
-    shp_path = os.path.join(os.path.dirname(__file__), 'GeoData', 'Borders', 'ne_10m_admin_0_countries_lakes.shp')
+def borders_kazakhstan_geojson():
+    geojson_path = os.path.join(os.path.dirname(__file__), 'GeoData', 'Borders', 'kazakhstan.geojson')
     # проверка условия
-    if not os.path.exists(shp_path):
+    if not os.path.exists(geojson_path):
         # возврат результата (без раскрытия серверного пути клиенту)
-        return jsonify({"error": "Файл границ не найден на сервере"}), 404
+        return jsonify({"error": "GeoJSON файл границ Казахстана не найден на сервере"}), 404
     # начало блока перехвата ошибок
     try:
-        import shapefile
-        with open(shp_path, "rb") as f_shp:
-            reader = shapefile.Reader(shp=f_shp)
-            features = [{"type": "Feature", "geometry": getattr(s, "__geo_interface__", None), "properties": {}} for s in reader.shapes()]
+        with open(geojson_path, "rb") as f_geojson:
             # возврат результата
-            return jsonify({"type": "FeatureCollection", "features": features})
+            return Response(f_geojson.read(), mimetype="application/geo+json")
     # обработка ошибки
     except Exception as e:
         # возврат результата
         return jsonify({"error": str(e)}), 500
+
+@app.route("/api/borders/shp")
+# объявление функции
+def borders_shp():
+    # обратная совместимость: старый маршрут теперь отдаёт GeoJSON Казахстана вместо SHP
+    return borders_kazakhstan_geojson()
 
 
 CELESTRAK_TLE_BASE = "https://celestrak.org/NORAD/elements/gp.php"

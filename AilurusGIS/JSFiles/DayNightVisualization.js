@@ -51,6 +51,7 @@
         timePanel.style.zIndex = '1000';
         timePanel.style.transition = 'left 0.3s ease-in-out';
         viewer.container.appendChild(timePanel);
+        if (window.AilurusPanelManager) window.AilurusPanelManager.register(timePanel, { order: 40 });
 
         timePanel.innerHTML = `
             <div style="font-weight: bold; text-align: center;">Управление временем</div>

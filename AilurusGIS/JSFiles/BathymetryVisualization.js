@@ -99,6 +99,7 @@
         settingsPanel.style.transition = 'left 0.3s ease-in-out';
         
         viewer.container.appendChild(settingsPanel);
+        if (window.AilurusPanelManager) window.AilurusPanelManager.register(settingsPanel, { order: 10 });
 
         // добавили классы bathytitle и bathylabel для адаптивного изменения размеров шрифта
         settingsPanel.innerHTML = `
