@@ -1,10 +1,10 @@
 (function () {
     /*
      * AQI stations.
-     * Внешний вид точек и текстов сохранён как в старой версии:
-     * бело-чёрная круглая иконка + цвет AQI, подпись "AQI / категория" рядом с точкой.
-     * Оптимизация сделана без смены стиля: убраны покадровые CallbackProperty/анимации,
-     * добавлены кэш, отбор по сетке и отображение подписей только на рабочей дистанции.
+     * Внешний вид точек и подписей оставлен прежним: бело-чёрная круглая иконка,
+     * цветной центр по AQI и текст "AQI / категория" рядом с точкой.
+     * Производительность исправлена не удалением подписей, а виртуализацией:
+     * в Cesium одновременно создаются только станции, которые попадают в текущий экран.
      */
     function initEnvironmentalVisualization(viewer, options) {
         if (!viewer || typeof Cesium === 'undefined') return null;
@@ -17,14 +17,14 @@
         const mobileMode = isMobileLike();
         const config = Object.assign({
             bounds: { latMin: -85.0, lonMin: -180.0, latMax: 85.0, lonMax: 180.0 },
-            maxStations: mobileMode ? 900 : 2200,
-            cacheKey: 'cesium_aqi_bounds_cache_global_styled_fast_v1',
+            maxStoredStations: mobileMode ? 1800 : 5000,
+            cacheKey: 'cesium_aqi_bounds_cache_global_virtual_v2',
             cacheMs: 1000 * 60 * 60
         }, options || {});
 
-        config.maxStations = Math.max(250, Math.min(
-            Number(config.maxStations) || (mobileMode ? 900 : 2200),
-            mobileMode ? 1200 : 2600
+        config.maxStoredStations = Math.max(400, Math.min(
+            Number(config.maxStoredStations) || (mobileMode ? 1800 : 5000),
+            mobileMode ? 2200 : 6000
         ));
 
         const dataSource = new Cesium.CustomDataSource('AqicnStations');
@@ -32,7 +32,7 @@
         dataSource.show = false;
 
         dataSource.clustering.enabled = true;
-        dataSource.clustering.pixelRange = mobileMode ? 105 : 85;
+        dataSource.clustering.pixelRange = mobileMode ? 95 : 70;
         dataSource.clustering.minimumClusterSize = mobileMode ? 3 : 4;
 
         const aqiClusterPinCache = Object.create(null);
@@ -96,6 +96,11 @@
         let busy = false;
         let loadedOnce = false;
         let layerVisible = false;
+        let allStations = [];
+        let renderedKey = '';
+        let renderTimer = null;
+        let renderRunning = false;
+        let renderPending = false;
 
         let uiContainer = document.getElementById('environmentUiContainer');
         if (!uiContainer) {
@@ -141,6 +146,7 @@
         function applyVisibility() {
             dataSource.show = layerVisible;
             btnAqi.style.backgroundColor = layerVisible ? 'rgba(38, 84, 121, 1)' : '';
+            if (layerVisible && loadedOnce) scheduleRenderForCamera(10);
             viewer.scene.requestRender();
         }
 
@@ -324,6 +330,13 @@
             return station.uid ? `u:${station.uid}` : `${lat.toFixed(3)},${lon.toFixed(3)}`;
         }
 
+        function normalizeLon(lon) {
+            let value = Number(lon);
+            while (value < -180) value += 360;
+            while (value > 180) value -= 360;
+            return value;
+        }
+
         function prepareStations(stations) {
             if (!Array.isArray(stations)) return [];
 
@@ -331,9 +344,13 @@
             const deduped = [];
             for (const station of stations) {
                 const lat = Number(station.lat);
-                const lon = Number(station.lon);
+                const lon = normalizeLon(station.lon);
                 if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
                 if (lat < -90 || lat > 90 || lon < -180 || lon > 180) continue;
+
+                station._latNum = lat;
+                station._lonNum = lon;
+                station._score = stationScore(station);
 
                 const key = stationKey(station);
                 if (seen.has(key)) continue;
@@ -341,54 +358,159 @@
                 deduped.push(station);
             }
 
-            if (deduped.length <= config.maxStations) return deduped;
+            if (deduped.length <= config.maxStoredStations) {
+                return deduped.sort((a, b) => b._score - a._score);
+            }
 
-            const cellSize = mobileMode ? 8 : 5;
-            const cells = new Map();
-            for (const station of deduped) {
-                const lat = Number(station.lat);
-                const lon = Number(station.lon);
-                const cellKey = `${Math.floor((lat + 90) / cellSize)}:${Math.floor((lon + 180) / cellSize)}`;
-                const current = cells.get(cellKey);
-                if (!current || stationScore(station) > stationScore(current)) {
-                    cells.set(cellKey, station);
+            return selectByGeoGrid(deduped, config.maxStoredStations, 3.5, 1.0)
+                .sort((a, b) => b._score - a._score);
+        }
+
+        function getCameraHeight() {
+            const carto = viewer.camera.positionCartographic;
+            return carto && Number.isFinite(carto.height) ? carto.height : 20000000;
+        }
+
+        function radiansToDegrees(value) {
+            return Cesium.Math.toDegrees(value);
+        }
+
+        function getViewBounds(height) {
+            let rect = null;
+            try {
+                rect = viewer.camera.computeViewRectangle(viewer.scene.globe.ellipsoid);
+            } catch (_e) {
+                rect = null;
+            }
+
+            if (!rect || !Number.isFinite(rect.west) || !Number.isFinite(rect.east)) {
+                return { fullWorld: true, latMin: -90, latMax: 90, lonMin: -180, lonMax: 180 };
+            }
+
+            let west = normalizeLon(radiansToDegrees(rect.west));
+            let east = normalizeLon(radiansToDegrees(rect.east));
+            let south = Math.max(-90, radiansToDegrees(rect.south));
+            let north = Math.min(90, radiansToDegrees(rect.north));
+            const width = west <= east ? east - west : (180 - west) + (east + 180);
+            const heightDeg = Math.abs(north - south);
+
+            if (height > 26000000 || width >= 335 || heightDeg >= 160) {
+                return { fullWorld: true, latMin: -90, latMax: 90, lonMin: -180, lonMax: 180 };
+            }
+
+            const pad = height > 14000000 ? 18 : height > 7000000 ? 10 : height > 2500000 ? 5 : height > 800000 ? 2.2 : 0.8;
+            south = Math.max(-90, south - pad);
+            north = Math.min(90, north + pad);
+            west = normalizeLon(west - pad);
+            east = normalizeLon(east + pad);
+
+            return { fullWorld: false, latMin: south, latMax: north, lonMin: west, lonMax: east };
+        }
+
+        function lonInside(lon, west, east) {
+            if (west <= east) return lon >= west && lon <= east;
+            return lon >= west || lon <= east;
+        }
+
+        function insideBounds(item, bounds) {
+            if (bounds.fullWorld) return true;
+            return item._latNum >= bounds.latMin && item._latNum <= bounds.latMax && lonInside(item._lonNum, bounds.lonMin, bounds.lonMax);
+        }
+
+        function getActiveLimit(height) {
+            if (mobileMode) {
+                if (height > 16000000) return 65;
+                if (height > 7000000) return 110;
+                if (height > 2500000) return 150;
+                return 190;
+            }
+            if (height > 16000000) return 180;
+            if (height > 7000000) return 290;
+            if (height > 2500000) return 380;
+            return 520;
+        }
+
+        function getCellSize(height) {
+            if (height > 16000000) return 10;
+            if (height > 7000000) return 5;
+            if (height > 2500000) return 2;
+            if (height > 800000) return 0.75;
+            return 0.25;
+        }
+
+        function selectByGeoGrid(items, limit, cellSize, fillCellSize) {
+            const sorted = items.slice().sort((a, b) => (b._score || 0) - (a._score || 0));
+            const selected = [];
+            const selectedKeys = new Set();
+            const usedCells = new Set();
+
+            for (const item of sorted) {
+                if (selected.length >= limit) break;
+                const cellKey = `${Math.floor((item._latNum + 90) / cellSize)}:${Math.floor((item._lonNum + 180) / cellSize)}`;
+                if (usedCells.has(cellKey)) continue;
+                usedCells.add(cellKey);
+                const key = stationKey(item);
+                selectedKeys.add(key);
+                selected.push(item);
+            }
+
+            if (selected.length < limit) {
+                const fillCells = new Set();
+                for (const item of selected) {
+                    fillCells.add(`${Math.floor((item._latNum + 90) / fillCellSize)}:${Math.floor((item._lonNum + 180) / fillCellSize)}`);
+                }
+                for (const item of sorted) {
+                    if (selected.length >= limit) break;
+                    const key = stationKey(item);
+                    if (selectedKeys.has(key)) continue;
+                    const cellKey = `${Math.floor((item._latNum + 90) / fillCellSize)}:${Math.floor((item._lonNum + 180) / fillCellSize)}`;
+                    if (fillCells.has(cellKey)) continue;
+                    fillCells.add(cellKey);
+                    selectedKeys.add(key);
+                    selected.push(item);
                 }
             }
 
-            const selected = Array.from(cells.values());
-            const selectedKeys = new Set(selected.map(stationKey));
-
-            if (selected.length < config.maxStations) {
-                deduped
-                    .slice()
-                    .sort((a, b) => stationScore(b) - stationScore(a))
-                    .some(station => {
-                        const key = stationKey(station);
-                        if (!selectedKeys.has(key)) {
-                            selected.push(station);
-                            selectedKeys.add(key);
-                        }
-                        return selected.length >= config.maxStations;
-                    });
+            if (selected.length < limit) {
+                for (const item of sorted) {
+                    if (selected.length >= limit) break;
+                    const key = stationKey(item);
+                    if (selectedKeys.has(key)) continue;
+                    selectedKeys.add(key);
+                    selected.push(item);
+                }
             }
 
-            selected.sort((a, b) => stationScore(b) - stationScore(a));
-            return selected.slice(0, config.maxStations);
+            return selected;
         }
 
-        async function renderStations(stations) {
-            const visibleStations = prepareStations(stations);
-            dataSource.entities.removeAll();
-            if (visibleStations.length === 0) return;
+        function getRenderSelection() {
+            const height = getCameraHeight();
+            const bounds = getViewBounds(height);
+            const limit = getActiveLimit(height);
+            const candidates = allStations.filter(station => insideBounds(station, bounds));
+            const source = candidates.length > 0 ? candidates : allStations;
+            const cellSize = getCellSize(height);
+            const fillCellSize = Math.max(0.08, cellSize / 2.5);
+            const selected = selectByGeoGrid(source, limit, cellSize, fillCellSize);
+            const key = selected.map(stationKey).join('|');
+            return { selected, key };
+        }
 
-            const labelMaxDistance = mobileMode ? 1200000 : 2000000;
+        async function renderSelection(selected, key) {
+            if (renderedKey === key) return;
+            renderedKey = key;
+            dataSource.entities.removeAll();
+            if (!Array.isArray(selected) || selected.length === 0) return;
+
+            const labelMaxDistance = mobileMode ? 1400000 : 2200000;
 
             dataSource.entities.suspendEvents();
             try {
-                for (let i = 0; i < visibleStations.length; i++) {
-                    const st = visibleStations[i];
-                    const lat = Number(st.lat);
-                    const lon = Number(st.lon);
+                for (let i = 0; i < selected.length; i++) {
+                    const st = selected[i];
+                    const lat = st._latNum;
+                    const lon = st._lonNum;
                     const aqi = parseAqi(st.aqi);
                     const colorHex = getAqiColorHex(aqi);
                     const aqiLabel = aqi === null ? '?' : String(aqi);
@@ -412,7 +534,7 @@
                             image: getOrCreatePin(colorHex),
                             verticalOrigin: Cesium.VerticalOrigin.CENTER,
                             horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                            heightReference: Cesium.HeightReference.NONE,
                             disableDepthTestDistance: Number.POSITIVE_INFINITY,
                             scale: 1.0
                         },
@@ -426,16 +548,16 @@
                             verticalOrigin: Cesium.VerticalOrigin.CENTER,
                             horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
                             pixelOffset: new Cesium.Cartesian2(24, 0),
-                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                            heightReference: Cesium.HeightReference.NONE,
                             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                            translucencyByDistance: new Cesium.NearFarScalar(500000, 1.0, 2000000, 0.0),
+                            translucencyByDistance: new Cesium.NearFarScalar(500000, 1.0, labelMaxDistance, 0.0),
                             distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, labelMaxDistance),
                             showBackground: false
                         },
                         description: desc
                     });
 
-                    if (i > 0 && i % 300 === 0) {
+                    if (i > 0 && i % 120 === 0) {
                         dataSource.entities.resumeEvents();
                         await new Promise(resolve => setTimeout(resolve, 0));
                         dataSource.entities.suspendEvents();
@@ -444,7 +566,38 @@
             } finally {
                 dataSource.entities.resumeEvents();
             }
+            viewer.scene.requestRender();
         }
+
+        async function processRenderQueue() {
+            if (renderRunning) return;
+            renderRunning = true;
+            try {
+                while (renderPending && layerVisible && loadedOnce) {
+                    renderPending = false;
+                    const { selected, key } = getRenderSelection();
+                    await renderSelection(selected, key);
+                }
+            } finally {
+                renderRunning = false;
+            }
+        }
+
+        function scheduleRenderForCamera(delay) {
+            if (!loadedOnce || !layerVisible) return;
+            renderPending = true;
+            clearTimeout(renderTimer);
+            renderTimer = setTimeout(processRenderQueue, Number.isFinite(delay) ? delay : 120);
+        }
+
+        const removeMoveEnd = viewer.camera.moveEnd.addEventListener(function () {
+            scheduleRenderForCamera(80);
+        });
+
+        const resizeHandler = function () {
+            scheduleRenderForCamera(120);
+        };
+        window.addEventListener('resize', resizeHandler);
 
         async function loadStations(forceRefresh) {
             const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка AQI (весь мир)...') : null;
@@ -458,9 +611,12 @@
                     writeCache(config.cacheKey, stations);
                 }
 
-                await renderStations(stations);
+                allStations = prepareStations(stations);
+                renderedKey = '';
                 loadedOnce = true;
                 layerVisible = true;
+                const initialSelection = getRenderSelection();
+                await renderSelection(initialSelection.selected, initialSelection.key);
                 applyVisibility();
                 return true;
             } catch (err) {
@@ -478,7 +634,13 @@
         return {
             reload: () => loadStations(true),
             setEnabled: (enabled) => { layerVisible = Boolean(enabled); applyVisibility(); },
-            isEnabled: () => layerVisible
+            isEnabled: () => layerVisible,
+            destroy: () => {
+                clearTimeout(renderTimer);
+                if (typeof removeMoveEnd === 'function') removeMoveEnd();
+                window.removeEventListener('resize', resizeHandler);
+                viewer.dataSources.remove(dataSource, true);
+            }
         };
     }
 
