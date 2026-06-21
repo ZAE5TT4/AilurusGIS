@@ -17,7 +17,7 @@ window.CityDetailsPanel = (function() {
         #cityDetailsSidebar {
             box-sizing: border-box;
             max-width: calc(100vw - 38px);
-            overflow: hidden;
+            overflow: visible;
         }
         @media (max-width: 768px) {
             html, body, #cesiumContainer {
@@ -57,7 +57,10 @@ window.CityDetailsPanel = (function() {
     panel.style.fontFamily = 'Arial, sans-serif';
     panel.style.color = '#fff'; // Белый текст по умолчанию
     panel.style.boxSizing = 'border-box';
-    panel.style.overflow = 'hidden';
+    // Важно: кнопка сворачивания находится за правым краем панели.
+    // Нельзя ставить overflow: hidden на саму панель, иначе на мобильных
+    // в закрытом состоянии кнопка будет обрезана и исчезнет.
+    panel.style.overflow = 'visible';
 
     // кнопка свернуть/развернуть панель
     const toggleBtn = document.createElement('div');
