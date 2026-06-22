@@ -65,10 +65,23 @@
         `;
 
         let isActive = false;
+        let isBusy = false;
         let nightLayer = null;
         let originalTime = null;
         let origLighting = null;
+        let origLightObject = null;
+        let origSunShow = null;
+        let origMoonShow = null;
         let ownNightLayer = false; // true если мы сами создали слой, false если переиспользовали от спутников
+
+        const dayNightState = window.AilurusDayNightState || {};
+        window.AilurusDayNightState = dayNightState;
+        dayNightState.isActive = false;
+        dayNightState.applyLighting = () => {
+            viewer.scene.globe.enableLighting = true;
+            viewer.scene.light = new Cesium.SunLight();
+            if (viewer.scene.sun) viewer.scene.sun.show = true;
+        };
 
         const timeSlider = document.getElementById('timeSlider');
         const timeVal = document.getElementById('timeVal');
@@ -101,16 +114,30 @@
         }
 
         btn.addEventListener('click', async () => {
-            isActive = !isActive;
+            if (isBusy) return;
+            isBusy = true;
+            btn.style.pointerEvents = 'none';
+
+            try {
+                isActive = !isActive;
+                dayNightState.isActive = isActive;
             
-            // проверка условия
-            if (isActive) {
-                origLighting = viewer.scene.globe.enableLighting;
+                // проверка условия
+                if (isActive) {
+                    // Батиметрия удаляет свой шейдер с небольшой задержкой.
+                    // Если включить день/ночь прямо в этот момент, ночной слой может лечь на всю карту.
+                    if (window.AilurusBathymetryState && typeof window.AilurusBathymetryState.waitForCleanup === 'function') {
+                        await window.AilurusBathymetryState.waitForCleanup();
+                    }
 
-                viewer.scene.sun.show = true;
-                viewer.scene.globe.enableLighting = true;
+                    origLighting = viewer.scene.globe.enableLighting;
+                    origLightObject = viewer.scene.light;
+                    origSunShow = viewer.scene.sun ? viewer.scene.sun.show : null;
+                    origMoonShow = viewer.scene.moon ? viewer.scene.moon.show : null;
 
-                originalTime = viewer.clock.currentTime.clone();
+                    dayNightState.applyLighting();
+
+                    originalTime = viewer.clock.currentTime.clone();
                 
                 // проверяем есть ли уже ночной слой от спутников
                 const existing = findExistingNightLayer();
@@ -133,10 +160,12 @@
                 btn.style.backgroundColor = 'rgba(38, 84, 121, 1)';
                 timePanel.style.display = 'flex';
             } else {
-                viewer.scene.globe.enableLighting = origLighting !== null ? origLighting : false;
-                viewer.scene.sun.show = false;
+                    viewer.scene.globe.enableLighting = origLighting !== null ? origLighting : false;
+                    viewer.scene.light = origLightObject || new Cesium.SunLight();
+                    if (viewer.scene.sun) viewer.scene.sun.show = origSunShow !== null ? origSunShow : false;
+                    if (viewer.scene.moon) viewer.scene.moon.show = origMoonShow !== null ? origMoonShow : false;
 
-                viewer.clock.shouldAnimate = false;
+                    viewer.clock.shouldAnimate = false;
                 viewer.clock.multiplier = 1;
                 viewer.clock.currentTime = originalTime; 
                 
@@ -159,8 +188,12 @@
                     ownNightLayer = false;
                 }
                 
-                btn.style.backgroundColor = '';
-                timePanel.style.display = 'none';
+                    btn.style.backgroundColor = '';
+                    timePanel.style.display = 'none';
+                }
+            } finally {
+                isBusy = false;
+                btn.style.pointerEvents = 'auto';
             }
         });
     }

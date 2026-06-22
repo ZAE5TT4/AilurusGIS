@@ -168,6 +168,13 @@
         let originalLighting = null;
         let originalLightObject = null;
         let preRenderListener = null;
+        let cleanupTimer = null;
+
+        const bathymetryState = window.AilurusBathymetryState || {};
+        window.AilurusBathymetryState = bathymetryState;
+        bathymetryState.isActive = false;
+        bathymetryState.cleanupPromise = null;
+        bathymetryState.waitForCleanup = () => bathymetryState.cleanupPromise || Promise.resolve();
 
         // настройки из панели
         let showContourLines = true;
@@ -434,6 +441,7 @@
             // начало блока перехвата ошибок
             try {
                 isActive = !isActive;
+                bathymetryState.isActive = isActive;
                 
                 // проверка условия
                 if (isActive) {
@@ -441,6 +449,9 @@
                     const loadId = window.LoadingIndicator ? window.LoadingIndicator.show('Загрузка батиметрии дна...') : null;
                     // начало блока перехвата ошибок
                     try {
+                        // ждем, если предыдущий шейдер батиметрии еще снимается со сцены
+                        if (bathymetryState.cleanupPromise) await bathymetryState.cleanupPromise;
+
                         // загружаем батиметрию каждый раз заново чтобы избежать использования удаленных из памяти объектов
                         bathyTerrain = await Cesium.createWorldBathymetryAsync({ requestVertexNormals: true });
                         
@@ -508,9 +519,13 @@
                         viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
                     }
                     
-                    // 3 возвращаем свет и шейдеры
-                    viewer.scene.globe.enableLighting = originalLighting !== null ? originalLighting : false;
-                    viewer.scene.light = originalLightObject || new Cesium.SunLight();
+                    // 3 возвращаем свет и шейдеры. Если режим День/Ночь уже активен, не перетираем его солнечный свет.
+                    if (window.AilurusDayNightState && window.AilurusDayNightState.isActive && typeof window.AilurusDayNightState.applyLighting === 'function') {
+                        window.AilurusDayNightState.applyLighting();
+                    } else {
+                        viewer.scene.globe.enableLighting = originalLighting !== null ? originalLighting : false;
+                        viewer.scene.light = originalLightObject || new Cesium.SunLight();
+                    }
                     toggleCustomShaders(false);
                     
                     // проверка условия
@@ -522,13 +537,19 @@
                     // 4 безопасное удаление шейдерного материала с задержкой
                     // (предотвращает краш webgl: "bindtexture attempt to use a deleted object")
                     // задержка дает движку время дорендерить и выгрузить старые куски рельефа перед удалением их текстур
-                    setTimeout(() => {
-                        // проверка условия
-                        if (!isActive) {
-                            viewer.scene.globe.material = undefined;
-                            bathyTerrain = null; // Полностью сбрасываем батиметрию из памяти
-                        }
-                    }, 400); 
+                    if (cleanupTimer) clearTimeout(cleanupTimer);
+                    bathymetryState.cleanupPromise = new Promise((resolve) => {
+                        cleanupTimer = setTimeout(() => {
+                            // проверка условия
+                            if (!isActive) {
+                                viewer.scene.globe.material = undefined;
+                                bathyTerrain = null; // Полностью сбрасываем батиметрию из памяти
+                            }
+                            cleanupTimer = null;
+                            bathymetryState.cleanupPromise = null;
+                            resolve();
+                        }, 400);
+                    });
                     
                     btnBathy.style.backgroundColor = '';
                     btnBathy.title = 'Батиметрия (Выкл)';
@@ -536,6 +557,7 @@
             } catch (error) {
                 console.error('Ошибка батиметрии:', error);
                 isActive = false;
+                bathymetryState.isActive = false;
                 btnBathy.style.backgroundColor = '';
                 settingsPanel.style.display = 'none';
                 
