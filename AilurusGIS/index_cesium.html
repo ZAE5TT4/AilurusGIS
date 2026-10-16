@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <base href="/">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AilurusGIS</title>
+
+    <link rel="icon" type="image/svg+xml" href="Sprites/Favicons/favicon.svg">
+    <link rel="icon" type="image/png" href="Sprites/Favicons/favicon.png" sizes="any">
+
+
+    <script src="Cesium/Cesium.js" charset="utf-8"></script>
+    <script src="/api/runtime-config.js" charset="utf-8"></script>
+    <link href="Cesium/Widgets/widgets.css" rel="stylesheet" />
+
+    <style>
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            overscroll-behavior: none;
+            background-color: #000000;
+        }
+
+        #cesiumContainer {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000000;
+        }
+
+
+        #preloadBlackScreen {
+            position: fixed;
+            inset: 0;
+            background: #000000;
+            z-index: 99999;
+            pointer-events: none;
+            opacity: 1;
+            transition: opacity 0.25s ease-out;
+        }
+
+
+        #logo {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            width: 200px;
+            height: auto;
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+
+        #mobileToolbarToggle {
+            display: none;
+            position: fixed;
+            bottom: 80px;
+            left: var(--panel-offset, 15px);
+            z-index: 2000;
+            width: 38px;
+            height: 38px;
+            padding: 0;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+            transition: left 0.3s ease-in-out;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+
+        @media (max-width: 768px) {
+
+            #mobileToolbarToggle { display: flex; }
+
+
+            #logo { width: 120px; bottom: 8px; right: 8px; opacity: 0.4; }
+
+
+            .cesium-button {
+                min-width: 38px !important;
+                min-height: 38px !important;
+            }
+
+
+            .toolbar-hidden #environmentUiContainer,
+            .toolbar-hidden #bordersUiContainer,
+            .toolbar-hidden #bathymetryUiContainer,
+            .toolbar-hidden #eqUiContainer,
+            .toolbar-hidden #satUiContainer,
+            .toolbar-hidden #weatherUiContainer,
+            .toolbar-hidden #dnUiContainer,
+            .toolbar-hidden #dbUiContainer {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateX(-60px);
+                transition: opacity 0.25s, transform 0.25s;
+            }
+
+
+            #environmentUiContainer,
+            #bordersUiContainer,
+            #bathymetryUiContainer,
+            #eqUiContainer,
+            #satUiContainer,
+            #weatherUiContainer,
+            #dnUiContainer,
+            #dbUiContainer {
+                transition: opacity 0.25s, transform 0.25s;
+            }
+
+
+            [style*="position: absolute"][style*="right:"]:not(#cityDetailsSidebarToggle) {
+                max-width: calc(100vw - 20px) !important;
+            }
+        }
+
+
+        @media (max-width: 480px) {
+            #logo { display: none; }
+
+
+            .cesium-viewer-toolbar {
+                top: 5px !important;
+                right: 5px !important;
+            }
+
+
+            #environmentUiContainer,
+            #bordersUiContainer,
+            #bathymetryUiContainer,
+            #eqUiContainer,
+            #satUiContainer,
+            #weatherUiContainer,
+            #dnUiContainer,
+            #dbUiContainer {
+                left: 8px !important;
+                gap: 6px !important;
+            }
+        }
+
+
+        @media (max-height: 500px) and (max-width: 900px) {
+            #environmentUiContainer { top: 8px !important; }
+            #bordersUiContainer { top: 48px !important; }
+            #bathymetryUiContainer { top: 88px !important; }
+            #eqUiContainer { top: 128px !important; }
+            #satUiContainer { top: 168px !important; }
+            #weatherUiContainer { top: 208px !important; }
+            #dnUiContainer { top: 248px !important; }
+            #dbUiContainer { top: 288px !important; }
+
+            #mobileToolbarToggle { bottom: 50px; }
+            #logo { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+
+    <div id="preloadBlackScreen"></div>
+
+
+    <div id="cesiumContainer"></div>
+
+
+    <picture>
+        <source srcset="Sprites/Logos/LogoFullTracingLow.svg" type="image/svg+xml">
+        <img id="logo" src="Sprites/Logos/LogoFullTracingLow.png" alt="Логотип">
+    </picture>
+
+
+    <button id="mobileToolbarToggle" class="cesium-button cesium-toolbar-button" title="Показать/скрыть инструменты">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left: 2px;"><path d="M8 5v14l11-7z"/></svg>
+    </button>
+
+
+    <script charset="utf-8">
+        Cesium.Ion.defaultAccessToken = window.AILURUS_CONFIG?.cesiumIonToken || '';
+
+
+        const viewer = new Cesium.Viewer('cesiumContainer', {
+            animation:            false,
+            timeline:             false,
+            fullscreenButton:     false,
+            navigationHelpButton: true,
+            baseLayerPicker:      true,
+            geocoder:             false,
+            sceneModePicker:      false,
+            infoBox:              false
+        });
+
+        viewer.useBrowserRecommendedResolution = false;
+        viewer.resolutionScale = 1.0;
+
+
+        viewer._cesiumWidget._creditContainer.style.display = 'none';
+
+        viewer.scene.sun.show  = false;
+        viewer.scene.moon.show = false;
+        viewer.scene.globe.enableLighting = false;
+
+        if (viewer.infoBox && viewer.infoBox.frame) {
+            viewer.infoBox.frame.removeAttribute('sandbox');
+            viewer.infoBox.frame.src = 'about:blank';
+        }
+    </script>
+
+
+    <script src="JSFiles/LoadingIndicator.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/MobileAdapter.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Shaders/GlobeOuterGlow.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Shaders/GlobeOutline.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Shaders/GlobeShadow.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Intro/LoadingScreen.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Intro/IntroAnimation.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Other/MusicPlayer.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Other/ShaderToggle.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/Other/HomeKazakstan.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/VisualSettings.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/WindFlowVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/CityDetailsPanel.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/WeatherVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/AirQualityMapVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/EnvironmentalVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/BordersVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/CesiumLocalization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/BathymetryVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/TectonicPlatesVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/EarthquakeVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/PrecipitationVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/SatelliteVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/DayNightVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/OsmBuildingsVisualization.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/PoiManager.js" charset="utf-8"></script>
+
+
+    <script src="JSFiles/FpsToggle.js" charset="utf-8"></script>
+
+
+    <script charset="utf-8">
+
+        applyVisualSettings(viewer);
+        applyGlobeOutline(viewer);
+        applyGlobeShadow(viewer);
+        applyGlobeOuterGlow(viewer);
+
+        setupIntroCamera(viewer);
+        initLoadingScreen(viewer, function() {
+            playIntroAnimation(viewer);
+        });
+
+        initMusicPlayer(viewer);
+        initShaderToggle(viewer);
+
+        initWeatherVisualization(viewer);
+        initAirQualityMapVisualization(viewer);
+        initEnvironmentalVisualization(viewer);
+        initBordersVisualization(viewer);
+        localizeCesiumUI(viewer);
+        initBathymetryVisualization(viewer);
+        initTectonicPlatesVisualization(viewer);
+        initEarthquakeVisualization(viewer);
+        initPrecipitationVisualization(viewer);
+        initSatelliteVisualization(viewer);
+
+        initDayNightVisualization(viewer);
+        initOsmBuildingsVisualization(viewer);
+        initPoiManager(viewer);
+
+        initFpsToggle(viewer);
+
+    </script>
+
+
+    <script charset="utf-8">
+        setTimeout(function () {
+            const screen = document.getElementById('preloadBlackScreen');
+            if (screen) {
+                screen.style.opacity = '0';
+                setTimeout(function () { screen.remove(); }, 260);
+            }
+        }, 300);
+    </script>
+
+
+    <script charset="utf-8">
+    (function() {
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+        const isSmallPhone = window.innerWidth <= 480;
+
+
+        if (isMobile && typeof viewer !== 'undefined') {
+
+            viewer.resolutionScale = isSmallPhone ? 0.5 : 0.65;
+
+            viewer.targetFrameRate = 30;
+            viewer.useDefaultRenderLoop = true;
+
+            viewer.scene.globe.maximumScreenSpaceError = isSmallPhone ? 4 : 3;
+
+            if (isSmallPhone) {
+                try {
+                    viewer.scene.postProcessStages.bloom.enabled = false;
+                    viewer.scene.postProcessStages.fxaa.enabled = false;
+                    viewer.scene.fog.enabled = false;
+                    viewer.scene.globe.showGroundAtmosphere = false;
+                } catch(e) {}
+            }
+        }
+
+
+        const toggleBtn = document.getElementById('mobileToolbarToggle');
+        if (toggleBtn && !toggleBtn._mobileAdapterInited) {
+            let toolbarVisible = true;
+            toggleBtn.addEventListener('click', function() {
+                toolbarVisible = !toolbarVisible;
+                if (toolbarVisible) {
+                    document.body.classList.remove('toolbar-hidden');
+                    toggleBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>';
+                    toggleBtn.title = 'Скрыть инструменты';
+                } else {
+                    document.body.classList.add('toolbar-hidden');
+                    toggleBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-left: 2px;"><path d="M8 5v14l11-7z"/></svg>';
+                    toggleBtn.title = 'Показать инструменты';
+                }
+            });
+        }
+
+
+        if (isMobile && typeof viewer !== 'undefined') {
+            const canvas = viewer.scene.canvas;
+            let touchMoved = false;
+            let touchStartX, touchStartY;
+
+            canvas.addEventListener('touchstart', function(e) {
+                touchMoved = false;
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }, { passive: true });
+
+            canvas.addEventListener('touchmove', function(e) {
+                const dx = Math.abs(e.touches[0].clientX - touchStartX);
+                const dy = Math.abs(e.touches[0].clientY - touchStartY);
+                if (dx > 8 || dy > 8) touchMoved = true;
+            }, { passive: true });
+
+            canvas.addEventListener('touchend', function(e) {
+                if (touchMoved) e.stopImmediatePropagation();
+            }, { capture: true });
+        }
+
+    })();
+    </script>
+
+</body>
+</html>
