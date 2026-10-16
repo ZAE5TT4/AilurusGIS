@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Sprites/Logos/LogoFullTracingLow.png" alt="AilurusGIS" width="520">
+  <img src="AilurusGIS/Sprites/Logos/LogoFullTracingLow.png" alt="AilurusGIS" width="520">
 </p>
 
 # AilurusGIS
